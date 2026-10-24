@@ -13,3 +13,4 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .overlay input:focus { border-color: #00b2e1; }
 #dead { background: rgba(40, 40, 40, .28); }
 #result { white-space: pre-line; }
+#ver { position: fixed; left: 8px; bottom: 6px; font-size: 11px; color: rgba(255, 255, 255, .55); text-shadow: 0 1px 0 rgba(0, 0, 0, .4); pointer-events: none; z-index: 5; }

@@ -27,6 +27,7 @@ const SC = {
   shapeflow: ['도형 흐름 측정: 도형이 죽는 속도와 다시 생기는 속도(군집·일반·둥지), 도형 수 추이 (플레이어 정지, 봇만)', o => 5 + o.min * 3],
   clustercheck: ['군집 일생 확인(grow 모드): 총 생성이 목표를 넘지 않는지, 목표 달성 뒤 생성이 없는지, 성장 시간, 종료 사유, 군집 수 유지, 도형 수', o => 5 + o.min * 3],
   classcheck: ['클래스 전직 규칙(15·30레벨 선택지, 잘못된 선택 거부), 봇 선택 분포, 클래스별 초당 발사 수·피해 지표', () => 8],
+  classduel: ['클래스 1대1 결투: 같은 레벨·같은 성격의 봇 둘이 맞붙는 승률표(--classes a,b,c --n 결투 수 --limit 초 --level L)', o => { const k = opt.classes ? String(opt.classes).split(',').length : 12; return 5 + k * (k - 1) / 2 * (opt.n ? +opt.n : 2) * 2; }],
   bodycheck: ['몸통 충돌 물리 측정: 플레이어가 도형·탱크를 향해 계속 전진할 때 전진 속도, 대상이 밀린 거리, 멈춤 여부', () => 6],
   botspawn: ['봇 스폰 위치 분포(맵 전체 무작위인지)', () => 3],
   autofire: ['사망 시 오토파이어 해제, E 키 동작', () => 1],
@@ -79,12 +80,12 @@ const gameSha = crypto.createHash('sha256').update(src).digest('hex').slice(0, 1
 const marker = "game = new Game(document.getElementById('c'));";
 if (!src.includes(marker)) { console.error('game.js에서 "' + marker + '" 줄을 찾지 못했습니다.'); process.exit(1); }
 const overrides = opt.sets.map(s => { const m = /^([A-Za-z_][\w.]*)=(.+)$/.exec(s || ''); if (!m) { console.error('--set 형식: 경로=값 (예: bots.base=12)'); process.exit(1); } let v; try { v = JSON.parse(m[2]); } catch (e) { v = m[2]; } return 'CFG.' + m[1] + ' = ' + JSON.stringify(v) + ';'; }).join('\n');
-src = src.replace(marker, overrides + '\n' + marker) + '\n;globalThis.__x = { g: game, C: CFG, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, classChoices, tierOf, ANIMALS, TICK };';
-let g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, classChoices, tierOf;
+src = src.replace(marker, overrides + '\n' + marker) + '\n;globalThis.__x = { g: game, C: CFG, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, classChoices, tierOf, botBuildWeights, ANIMALS, TICK };';
+let g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, classChoices, tierOf, botBuildWeights;
 const srcTemplate = src; // 로드 전의 설정 적용본(시나리오마다 새로 평가하기 위해 보관)
 function boot() { // 게임을 새로 만들고 참조를 갱신 (시나리오 사이에 월드가 섞이지 않게)
   global.__L = {}; seedBoot(); (0, eval)(srcTemplate);
-  ({ g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, classChoices, tierOf } = global.__x);
+  ({ g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, classChoices, tierOf, botBuildWeights } = global.__x);
   if (opt.nosep) { g.separateShapes = () => {}; g.shapeFree = () => true; } // 성능 비교용: 도형 겹침 방지(분리 + 생성 시 검사) 끄기
 }
 function seedBoot() { if (opt.seed !== undefined) seedRand(num(opt.seed, 1)); }
@@ -415,6 +416,31 @@ S.classcheck = () => { // 전직 규칙 확인과 클래스별 초당 발사 수
     if (fr && rr.length === 2) { const sp = Q.spec; say('    앞: 피해 ' + f2(fr.dmg) + ' 관통 ' + f1(fr.pen0) + ' 수명 ' + f2(fr.life) + ' | 뒤: 피해 ' + f2(rr[0].dmg) + ' 관통 ' + f1(rr[0].pen0) + ' 수명 ' + f2(rr[0].life) + ' (기본 피해 ' + f2(sp.dmg) + ', 수명 ' + f2(sp.life) + ')');
       chk(Math.abs(fr.dmg - sp.dmg) < 1e-9 && Math.abs(fr.life - sp.life) < 0.05, '앞 총알은 기본값(수명은 발사 직후 한 프레임 경과 오차 0.05초 허용)'); chk(Math.abs(rr[0].dmg - sp.dmg * 0.2) < 1e-9 && Math.abs(rr[0].life - sp.life * 0.5) < 0.05, '뒤 총알은 피해 20%, 수명 50%'); } }
   say(bad ? '확인 결과: 위반 ' + bad + '건' : '확인 결과: 위반 없음'); rec('classcheck.bad', bad);
+};
+
+S.classduel = o => { // 클래스 1대1 결투: 같은 레벨·같은 성격(균형형)의 봇 둘이 서로를 상대로 싸워 승률을 낸다. 봇 AI는 아직 클래스별 전술이 없어 클래스의 순수한 화력·생존 차이 + AI의 공통 행동을 함께 본다
+  const L = num(opt.level, 30), N = num(opt.n, 2), limit = num(opt.limit, 25), cx = C.world / 2, ty = C.botTypes.find(t => t.n === '균형형') || C.botTypes[0];
+  const all = Object.keys(C.classes).filter(k => k !== 'tank'), cls = opt.classes ? String(opt.classes).split(',') : all, f0 = x => (100 * x).toFixed(0).padStart(3);
+  const mk = (k, x, y) => { const keep = C.botTypes; C.botTypes = [Object.assign({}, ty, { w: 1 })]; const b = new Bot(x, y, L, 'D', L); C.botTypes = keep; b.setClass(k); for (const st of C.stats) b.up[st.k] = 0; b.pts = pointsFor(L); b.wt = botBuildWeights(b.pt, k); b.spendPoints(); b.hp = b.maxHp; b.invT = 0; b.idleT = 0; b.skill = 0.93; b.aimErrMax = C.botFx.aimErr * (1 - b.skill); b.vx = b.vy = 0; return b; };
+  say('=== [classduel] Lv' + L + ' 균형형 봇 1대1 (클래스 ' + cls.length + '개, 쌍마다 ' + N + '번(위치 교대), 제한 ' + limit + '초, 같은 시드) | 승률 % = (승 + 무승부/2) ÷ 결투 수. 무승부 = 시간 안에 승부가 안 났고 체력 비율 차이가 20%p 미만 ===');
+  const win = {}; for (const a of cls) { win[a] = {}; for (const b of cls) win[a][b] = null; }
+  const b0 = C.bots.base, p0 = C.bots.perLevel, ssf = g.spawnShape, scr = g.spawnCrasher;
+  try {
+    for (let i = 0; i < cls.length; i++) for (let j = i + 1; j < cls.length; j++) {
+      let sc = 0;
+      for (let r = 0; r < N; r++) {
+        reseed('duel' + cls[i] + cls[j] + r); fresh(); g.player.alive = false; C.bots.base = 0; C.bots.perLevel = 0; g.spawnShape = () => false; g.spawnCrasher = () => {}; g.shapes = []; g.crashers = []; g.bullets = [];
+        const flip = r % 2 === 1, A = mk(cls[i], cx + (flip ? 300 : -300), cx), B = mk(cls[j], cx + (flip ? -300 : 300), cx); g.bots = [A, B];
+        let t = 0; while (t < limit * 60 && A.hp > 0 && B.hp > 0) { g.update(1 / 60); t++; if (g.bots.length < 2) break; }
+        if (opt.debug) say('  [' + cls[i] + ' vs ' + cls[j] + ' r' + r + '] ' + (t / 60).toFixed(1) + '초 hp ' + A.hp.toFixed(0) + '/' + A.maxHp.toFixed(0) + ' vs ' + B.hp.toFixed(0) + '/' + B.maxHp.toFixed(0) + ' 봇수 ' + g.bots.length);
+        const ha = Math.max(0, A.hp / A.maxHp), hb = Math.max(0, B.hp / B.maxHp); sc += A.hp <= 0 && B.hp <= 0 ? 0.5 : B.hp <= 0 ? 1 : A.hp <= 0 ? 0 : Math.abs(ha - hb) < 0.2 ? 0.5 : ha > hb ? 1 : 0;
+      }
+      win[cls[i]][cls[j]] = sc / N; win[cls[j]][cls[i]] = 1 - sc / N;
+    }
+  } finally { C.bots.base = b0; C.bots.perLevel = p0; g.spawnShape = ssf; g.spawnCrasher = scr; }
+  say('행 = 해당 클래스의 승률(상대 = 열)'.padEnd(14) + cls.map(c => c.slice(0, 5).padStart(6)).join('') + '   평균');
+  const avgs = {}; for (const a of cls) { const v = cls.filter(b => b !== a).map(b => win[a][b]); avgs[a] = v.reduce((x, y) => x + y, 0) / Math.max(1, v.length); say(a.padEnd(14) + cls.map(b => (a === b ? '   -  ' : f0(win[a][b]).padStart(6))).join('') + '  ' + f0(avgs[a]).padStart(4)); rec('classduel.avg.' + a, avgs[a]); }
+  const sorted = cls.slice().sort((x, y) => avgs[y] - avgs[x]); say('평균 승률 순: ' + sorted.map(c => c + ' ' + f0(avgs[c])).join(' > '));
 };
 
 S.bodycheck = () => { // 몸통 충돌 물리 측정: 플레이어(레벨 L)가 정지한 대상 쪽으로 3초 동안 계속 전진
