@@ -5,10 +5,10 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = 'fcbe86c'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
+const BUILD_ID = '750e571'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
 
 const CFG = {
-  world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 4.1e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
+  world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
   // 레벨별 필요 점수 (diep.io 위키 표, 인덱스 = 레벨)
   scoreAt: [0, 0, 4, 13, 28, 50, 78, 113, 157, 211, 275, 350, 437, 538, 655, 787, 948, 1109, 1301, 1516, 1767, 2026, 2325, 2647, 3035, 3433, 3883, 4379, 4925, 5525, 6184, 6907, 7698, 8537, 9426, 10368, 11367, 12426, 13549, 14739, 16000, 17337, 18754, 20256, 21849, 23536],
   stats: [ // 값 = base + per x 포인트 (diep.io 위키 수식). regen/reload/body는 사용처에서 별도 공식을 적용
@@ -36,7 +36,7 @@ const CFG = {
   },
   // 도형 군집(소형 둥지): 맵 곳곳에 도형이 모여 있는 구역. 일정 시간이 지나거나 대부분 파괴되면 다른 곳으로 옮겨감
   map: { areaPerTank: 25e6, min: 7000, max: 23000, rate: 100, smooth: 30 }, // 맵 한 변 = sqrt(전체 탱크 수 x areaPerTank), min~max 제한, 초당 rate만큼 서서히 변화
-  clusters: { areaPerCluster: 33e6, maxCount: 7, rMin: 560, rMax: 720, density: 3.36e-5, refill: 1, mode: 'grow', growTime: [40, 80], startFill: [0.2, 0.9], release: 'free', attractMin: 0.3, life: 480, minGap: 2000, depleted: 0.3 }, // refill = 군집 한 곳이 도형을 다시 채우는 최대 속도(개/초, 이전 5 = 0.4초마다 2개), density = 면적당 목표 도형 수(이전 2.8e-5, 보충을 느리게 한 만큼 x1.2). 이전 동작으로 돌리려면 refill 5, density 2.8e-5 // mode 'grow' = 군집이 위치를 정한 뒤 growTime(초, 범위에서 무작위) 동안 도형을 하나씩 만들고, 만든 개수(spawned)가 목표(target)에 닿으면 더 만들지 않고 군집을 바로 없애며 도형은 일반 도형이 됨(처치로 줄어도 보충하지 않는 총 생성 예산). 'legacy' = 이전 보충 방식(refill로 계속 보충, 소진·수명 시 이동). startFill = 게임 시작 때 목표의 몇 %까지 미리 채울지(범위), release 'free' = 풀린 도형은 표류하며 흩어짐, 'zone' = 풀린 뒤에도 원래 군집 경계 안에 머묾, attractMin = 봇이 배회 목적지로 삼는 군집의 최소 채움 비율 // 반지름은 rMin~rMax 사이 무작위, 도형 수 = 면적 x density
+  clusters: { areaPerCluster: 33e6, maxCount: 7, rMin: 560, rMax: 720, density: 3.7e-5, refill: 1, mode: 'grow', growTime: [30, 60], startFill: [0.2, 0.9], release: 'free', attractMin: 0.3, life: 480, minGap: 2000, depleted: 0.3 }, // refill = 군집 한 곳이 도형을 다시 채우는 최대 속도(개/초, 이전 5 = 0.4초마다 2개), density = 면적당 목표 도형 수(이전 2.8e-5, 보충을 느리게 한 만큼 x1.2). 이전 동작으로 돌리려면 refill 5, density 2.8e-5 // mode 'grow' = 군집이 위치를 정한 뒤 growTime(초, 범위에서 무작위) 동안 도형을 하나씩 만들고, 만든 개수(spawned)가 목표(target)에 닿으면 더 만들지 않고 군집을 바로 없애며 도형은 일반 도형이 됨(처치로 줄어도 보충하지 않는 총 생성 예산). 'legacy' = 이전 보충 방식(refill로 계속 보충, 소진·수명 시 이동). startFill = 게임 시작 때 목표의 몇 %까지 미리 채울지(범위), release 'free' = 풀린 도형은 표류하며 흩어짐, 'zone' = 풀린 뒤에도 원래 군집 경계 안에 머묾, attractMin = 봇이 배회 목적지로 삼는 군집의 최소 채움 비율 // 반지름은 rMin~rMax 사이 무작위, 도형 수 = 면적 x density
   nest: { r: 1100, refMap: 16583, pentagons: 28, hexagons: 0, hexRespawn: 40, alphaMax: 1, alphaRespawn: 120, crasherMax: 15, largeRatio: 0.35 }, // 맵 중앙의 Pentagon Nest. r/pentagons/crasherMax는 맵 한 변이 refMap일 때의 값이고, 반지름은 맵 크기에 비례, 오각형·크래셔 수는 면적에 비례(밀도 동일), 알파는 항상 alphaMax개
   // 탱크 클래스. 배율은 기본 Tank 기준(diep.io 위키 참고). 배럴 값은 탱크 반지름(r) 배율:
   // len 길이, w 밑 너비, w2 끝 너비, off 옆 오프셋, ang 방향 회전, size 총알 크기 배율
@@ -117,7 +117,7 @@ CFG.botFight = { mode: 'power', offBase: 14, offPow: 3, needBase: 1.6, needBold:
 // wander(대상이 없을 때 배회): 속도 = spdBase + spdK x 목표지향, 방향은 새 방향으로 turnRate(라디안/초)만큼만 서서히 돌고 wobble(라디안)만큼 느리게 흔들림
 CFG.botFx.wander = { mode: 'natural', spdBase: 0.55, spdK: 0.3, turnRate: 0.8, wobble: 0.25 };
 // flee(도주): 도주 방향 = (적 반대) + 옆 방향 x (sideK x 가까움 + wobble 흔들림), 옆 방향은 sideT초(범위)마다 바뀌며 sideRate(1/초)로 부드럽게 전환, 실제 방향은 turnRate(라디안/초)만큼만 돎. 앞쪽 lookAhead(px)가 맵 가장자리 edgeMargin 안이면 중앙 쪽으로 edgePush만큼 틀음
-CFG.botFx.flee = { mode: 'natural', sideK: 0.5, wobble: 0.3, sideT: [0.6, 1.4], sideRate: 2.5, turnRate: 4, lookAhead: 500, edgeMargin: 250, edgePush: 1 };
+CFG.botFx.flee = { mode: 'natural', sideK: 0.2, wobble: 0.15, sideT: [0.6, 1.4], sideRate: 2.5, turnRate: 4, lookAhead: 500, edgeMargin: 250, edgePush: 1 };
 // aim(조준): 오차 최대 E = e0 x (1 - 숙련도) + ed x (거리 / 사거리) + ev x (상대 가속 / accRef), 오차 각도는 drift초마다 새 목표로 부드럽게 이동, 봇마다 습관 배율 habit[0] + habit[1] x 습관, 예측 시간 배율은 1 +/- leadErr(봇마다 고정), 새 탱크를 노리면 숙련도에 따라 lockMax~lockMin초 동안 회전 속도가 lockSlow배
 CFG.botFx.aim = { mode: 'human', e0: 0.1, ed: 0.06, ev: 0.05, accRef: 1000, drift: 0.3, habit: [0.7, 0.6], leadErr: 0.1, lockMax: 0.35, lockMin: 0.15, lockSlow: 0.35 };
 // 몸통 충돌 물리: 탱크가 도형과 부딪힐 때 계산에 쓰는 도형의 질량 = r x r x mass x shapeMass[도형 종류]. 값이 작을수록 도형이 가벼워 탱크가 덜 멈추고 도형이 더 쉽게 밀림(1 = 이전과 같음, 적은 종류는 1). mode 'legacy'는 shapeMass를 쓰지 않음(이전 동작). 탱크끼리·크래셔와의 충돌, 도형끼리의 충돌, 총알 밀림은 영향 없음
