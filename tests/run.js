@@ -23,6 +23,7 @@ const O = n => ({ runs: num(opt.runs, (DEF[n] || {}).runs || 1), min: num(opt.mi
 const SC = {
   config: ['설정에서 계산되는 값 확인(시뮬레이션 없음)', () => 1],
   shapes: ['총알 vs 도형 발수/관통, 몸통 충돌 피해, 재생 (순간 계산)', () => 2],
+  bodycheck: ['몸통 충돌 물리 측정: 플레이어가 도형·탱크를 향해 계속 전진할 때 전진 속도, 대상이 밀린 거리, 멈춤 여부', () => 6],
   botspawn: ['봇 스폰 위치 분포(맵 전체 무작위인지)', () => 3],
   autofire: ['사망 시 오토파이어 해제, E 키 동작', () => 1],
   nest: ['둥지 구성(오각형/육각형/알파), 육각형 재등장 타이머, 일반 도형 종류 비율', () => 6],
@@ -289,6 +290,26 @@ S.knockcheck = () => {
   say('비껴 맞을 때 총알의 꺾인 각도(도, 0이 직진): 대상 반지름의 50% 어긋나게 쏨, 최대 총알 / 생존 여부');
   for (const [k, n] of [['square', '사각형'], ['pentagon', '오각형'], ['hexagon', '육각형']]) { const r1 = shoot(() => { const sh = mkShape(k, cx, cx); g.shapes = [sh]; return sh; }, 50, 28, 0.5); say('  ' + n.padEnd(6) + (r1.ang === null ? '총알 소멸' : r1.ang.toFixed(1) + '도') + (r1.surv ? '' : '')); }
   say('(기대: 가벼운 대상일수록 속도가 크고 무거운 육각형·알파는 거의 안 움직임, 정면 사격은 각도 0, 비껴 맞으면 대상 중심 반대쪽(음수)으로 꺾임)');
+};
+
+S.bodycheck = () => { // 몸통 충돌 물리 측정: 플레이어(레벨 L)가 정지한 대상 쪽으로 3초 동안 계속 전진
+  const cx = C.world / 2, f1 = x => x.toFixed(1), L = num(opt.level, 1), out = {};
+  const run = (label, make) => {
+    const P = fresh({ x: cx - 250, y: cx, level: L }); g.bots = []; g.shapes = []; g.crashers = []; const T = make(); P.invT = 0; P.hp = P.maxHp = 1e9;
+    g.input.axis = () => [1, 0]; const x0 = P.x, t0 = T.x; let contact = 0, vSum = 0, maxPen = 0, rev = 0; const lastX = []; // contact = 겹친 프레임 수, rev = 속도가 뒤로 향한 프레임 수
+    for (let i = 1; i <= 180; i++) {
+      g.update(1 / 60); if (g.shapes.length && g.shapes[0] !== T && label.startsWith('도형')) g.shapes = [T]; if (T.hp < T.maxHp * 0.5 && T.maxHp < 1e8) T.hp = T.maxHp; // 대상이 죽지 않게 체력을 되돌림
+      const pen = P.r + T.r - Math.hypot(T.x - P.x, T.y - P.y); if (pen > 0) { contact++; vSum += P.vx; maxPen = Math.max(maxPen, pen); if (P.vx < 0) rev++; }
+      if (i > 150) lastX.push(P.x);
+    }
+    const v = (lastX[lastX.length - 1] - lastX[0]) / ((lastX.length - 1) / 60);
+    say(label.padEnd(26) + ' | 플레이어 이동 ' + f1(P.x - x0).padStart(6) + 'px | 마지막 0.5초 평균 속도 ' + f1(v).padStart(6) + ' | 대상 밀림 ' + f1(T.x - t0).padStart(6) + 'px | 접촉 ' + String(contact).padStart(3) + '/180프레임, 접촉 중 평균 vx ' + f1(contact ? vSum / contact : 0).padStart(6) + ', 뒤로 향한 프레임 ' + rev + ', 최대 겹침 ' + f1(maxPen));
+    out[label] = { dist: P.x - x0, v, push: T.x - t0, contact }; return P;
+  };
+  say('=== [bodycheck] 플레이어 Lv' + L + '이 정지한 대상(정면 250px)을 향해 3초 동안 계속 전진 | 자유 이동 최고 속도 약 ' + f1(new Player().s.move) + ' ===');
+  for (const t of ['square', 'triangle', 'pentagon', 'hexagon', 'alpha']) run('도형 ' + t, () => { const sh = mkShape(t, cx, cx, { calm: 0, hp: 1e9, maxHp: 1e9 }); g.shapes = [sh]; return sh; });
+  for (const [lab, dl] of [['탱크 같은 레벨', 0], ['탱크 +10레벨', 10]]) run('탱크 ' + lab.slice(3), () => { const keep = C.botTypes; const b = new Bot(cx, cx, 1 + L - 1 + dl, 'D'); b.idleT = 1e9; b.invT = 1e9; b.x = cx; b.y = cx; b.hp = b.maxHp = 1e9; g.bots = [b]; return b; });
+  rec('bodycheck', JSON.stringify(out));
 };
 
 S.sanity = o => {
