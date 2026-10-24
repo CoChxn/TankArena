@@ -96,6 +96,8 @@ CFG.botFx.flee = { mode: 'natural', sideK: 0.5, wobble: 0.3, sideT: [0.6, 1.4], 
 CFG.botFx.aim = { mode: 'human', e0: 0.1, ed: 0.06, ev: 0.05, accRef: 1000, drift: 0.3, habit: [0.7, 0.6], leadErr: 0.1, lockMax: 0.35, lockMin: 0.15, lockSlow: 0.35 };
 // 몸통 충돌 물리: 탱크가 도형과 부딪힐 때 계산에 쓰는 도형의 질량 = r x r x mass x shapeMass[도형 종류]. 값이 작을수록 도형이 가벼워 탱크가 덜 멈추고 도형이 더 쉽게 밀림(1 = 이전과 같음, 적은 종류는 1). mode 'legacy'는 shapeMass를 쓰지 않음(이전 동작). 탱크끼리·크래셔와의 충돌, 도형끼리의 충돌, 총알 밀림은 영향 없음
 CFG.bodyPhys = { mode: 'tuned', shapeMass: { square: 0.35, triangle: 0.35, pentagon: 0.35 } };
+// 총알 한 발이 한 대상(탱크)에 주는 총 피해의 범위: 하한 Dmin = Dt x tMin x (클래스 rangeMin), 상한 Dmax = Dt x (tMaxA + tMaxB x P) x (클래스 rangeMax). Dt = 틱당 피해(Bullet Damage 포인트 x 클래스 피해 배율), P = 총알 체력 / bulletHp(Penetration 포인트 x 클래스 관통 배율). 실제 총 피해 = 접촉 틱 교환으로 계산한 누적 피해를 Dmin~Dmax로 제한(하한은 처음 닿는 프레임에 바로 줌, 상한에 닿으면 그 대상에게는 더 주지 않고 총알은 계속 진행). target 'tank' = 탱크가 맞는 경우만(도형·크래셔는 이전과 같음), 'all' = 도형·크래셔 포함. mode 'legacy'는 범위 제한 없음(이전 동작)
+CFG.bulletRange = { mode: 'range', target: 'tank', tMin: 1.5, tMaxA: 0.8, tMaxB: 0.25 };
 CFG.scoreboardSmooth = 6; // 리더보드 게이지가 목표 길이로 따라가는 속도(1/초, 클수록 빠름, 0이면 즉시). 6이면 약 0.5초에 95% 도달
 const TICK = 0.04; // diep.io 서버 틱(1틱 = 0.04초)
 const TANK_RT = [15, 14, 13, 12, 11, 10, 9, 8]; // 기본 Tank 재장전(틱): 포인트당 -1틱. Sniper/Machine Gun은 클래스의 rt 표 사용
@@ -858,8 +860,14 @@ class Game {
     return true;
   }
   bulletExchange(b, e, u) { // 접촉 틱 교환: 대상은 총알 피해를, 총알은 대상의 방어값(탱크: 5+Body Damage 포인트, 도형: bcost)을 틱마다 잃음. 총알 체력이 모자라면 남은 비율만큼만 교환하고 소멸
-    const cost = e.up ? e.s.body : e.s.bcost, loss = cost * u, f = Math.min(1, b.pen / loss);
-    this.damage(e, b.dmg * u * f, b.owner); b.pen -= loss * f; if (e.s.solid) b.pen = 0;
+    const cost = e.up ? e.s.body : e.s.bcost, loss = cost * u, f = Math.min(1, b.pen / loss), BR = CFG.bulletRange;
+    let dm = b.dmg * u * f;
+    if (BR.mode !== 'legacy' && (e.up || BR.target === 'all')) { // 한 대상에 주는 총 피해를 Dmin~Dmax로 제한: 누적 = clamp(접촉 틱 교환 누적, Dmin, Dmax)
+      const rs = b.rs || (b.rs = []); let r = null; for (const x of rs) if (x.e === e) { r = x; break; } if (!r) { r = { e, rate: 0, dealt: 0 }; rs.push(r); }
+      const df = (b.owner && b.owner.def) || {}, lo = b.dmg * BR.tMin * (df.rangeMin || 1), hi = Math.max(lo, b.dmg * (BR.tMaxA + BR.tMaxB * b.pen0 / CFG.bulletHp) * (df.rangeMax || 1));
+      r.rate += dm; const nd = clamp(r.rate, lo, hi); dm = Math.max(0, nd - r.dealt); r.dealt += dm;
+    }
+    this.damage(e, dm, b.owner); b.pen -= loss * f; if (e.s.solid) b.pen = 0;
     if (!b.hits.includes(e)) { b.hits.push(e); this.fx.burst(b.x, b.y, e.col || e.s.c, 2, 90); } // 처음 닿을 때만 파티클
     this.bulletPush(b, e, u * f);
     return b.pen > 0;
