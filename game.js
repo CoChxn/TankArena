@@ -87,6 +87,13 @@ CFG.viewScale = 1.1; // 화면 기본 배율(이전 기본 = 1.0): 클수록 화
 // 싸움 기준 = thrMul x (needBase - needBold x 대담함). R이 기준 이상이면 싸움, 아니면 도주(경계 구간 없음). 복수 대상은 기준 x grudgeNeed. 정한 판단은 fightHold/fleeHold초 동안 유지하고 그 뒤에는 기준의 +/-hyst 여유를 둠. breakRatio > 0이면 싸우는 중 R이 기준 x breakRatio 밑으로 떨어질 때 유지 시간을 무시(0 = 꺼짐). 쉬움 보정 = clamp(R / (easeDiv x 기준), easeMin, easeMax)
 CFG.botFight = { mode: 'power', offBase: 14, offPow: 3, needBase: 1.6, needBold: 1.25, thrMul: 0.85, hyst: 0.15, fightHold: 2, fleeHold: 2, grudgeNeed: 0.7, easeDiv: 1.5, easeMin: 0.4, easeMax: 1.5, breakRatio: 0, fleeMemory: 5, threatMul: 1, threatPush: 1.2 };
 // 도주 후 위협 기억: 도주한 상대의 마지막 위치를 fleeMemory초 동안 기억(0 = 끔). 그 위치에서 (교전 시야 x threatMul) 안의 도형·크래셔(450px 안의 크래셔는 제외)는 파밍 후보에서 빼고, 파밍·배회 중에 그 구역 안이면 바깥으로 최대 threatPush 세기로 밀려나며(속도 0.7 이상), 배회 방향이 위협 쪽이면 반대로 돌림
+// 사람다운 움직임·조준 (봇 AI 개선). 각 mode를 'legacy'로 두면 이전 동작.
+// wander(대상이 없을 때 배회): 속도 = spdBase + spdK x 목표지향, 방향은 새 방향으로 turnRate(라디안/초)만큼만 서서히 돌고 wobble(라디안)만큼 느리게 흔들림
+CFG.botFx.wander = { mode: 'natural', spdBase: 0.55, spdK: 0.3, turnRate: 0.8, wobble: 0.25 };
+// flee(도주): 도주 방향 = (적 반대) + 옆 방향 x (sideK x 가까움 + wobble 흔들림), 옆 방향은 sideT초(범위)마다 바뀌며 sideRate(1/초)로 부드럽게 전환, 실제 방향은 turnRate(라디안/초)만큼만 돎. 앞쪽 lookAhead(px)가 맵 가장자리 edgeMargin 안이면 중앙 쪽으로 edgePush만큼 틀음
+CFG.botFx.flee = { mode: 'natural', sideK: 0.5, wobble: 0.3, sideT: [0.6, 1.4], sideRate: 2.5, turnRate: 4, lookAhead: 500, edgeMargin: 250, edgePush: 1 };
+// aim(조준): 오차 최대 E = e0 x (1 - 숙련도) + ed x (거리 / 사거리) + ev x (상대 가속 / accRef), 오차 각도는 drift초마다 새 목표로 부드럽게 이동, 봇마다 습관 배율 habit[0] + habit[1] x 습관, 예측 시간 배율은 1 +/- leadErr(봇마다 고정), 새 탱크를 노리면 숙련도에 따라 lockMax~lockMin초 동안 회전 속도가 lockSlow배
+CFG.botFx.aim = { mode: 'human', e0: 0.1, ed: 0.06, ev: 0.05, accRef: 1000, drift: 0.3, habit: [0.7, 0.6], leadErr: 0.1, lockMax: 0.35, lockMin: 0.15, lockSlow: 0.35 };
 CFG.scoreboardSmooth = 6; // 리더보드 게이지가 목표 길이로 따라가는 속도(1/초, 클수록 빠름, 0이면 즉시). 6이면 약 0.5초에 95% 도달
 const TICK = 0.04; // diep.io 서버 틱(1틱 = 0.04초)
 const TANK_RT = [15, 14, 13, 12, 11, 10, 9, 8]; // 기본 Tank 재장전(틱): 포인트당 -1틱. Sniper/Machine Gun은 클래스의 rt 표 사용
@@ -312,6 +319,8 @@ class Bot extends Player {
     this.wHunt = 2 * ty.g; this.wFarm = 2 * (1 - ty.g); // 목표지향: 사냥/파밍 점수 가중(0.5이면 둘 다 1)
     this.stay = F.stayBase + F.stayK * ty.p; this.holdT = F.holdBase + F.holdK * ty.p; this.holdLeft = 0; this.mode = ''; // 끈기: 현재 목표 유지 보너스와 최소 유지 시간 (mode: '', hunt, farm, flee)
     this.aimErrMax = F.aimErr * (1 - this.skill); this.aimErr = 0; // 숙련도(조준 오차)
+    const A = F.aim, FL = F.flee; this.ph = rand(0, TAU); this.waT = this.wa; this.fa = null; this.fleeSide = this.side; this.fleeSideGoal = this.side; this.fleeSideT = rand(FL.sideT[0], FL.sideT[1]); // 도주·배회 자연스러움: 방향 목표, 도주 방향, 옆 방향 상태
+    this.habit = rand(0, 1); this.leadMul = 1 + rand(-A.leadErr, A.leadErr); this.aimU = 0; this.aimUT = 0; this.aimTimer = 0; this.accS = 0; this.accT = null; this.pvx = 0; this.pvy = 0; this.lockLeft = 0; this.lastT = null; // 조준: 습관, 예측 배율, 오차 상태, 상대 가속 추정, 노림 지연
     this.setLevel(lv); this.spendPoints(); this.pickClass(); this.hp = this.maxHp; // 해당 레벨의 최소 점수와 33점 규칙 포인트
     this.age = 0; this.targetLv = Math.max(lv, targetLv || lv); this.invT = CFG.spawnInvuln; this.idleT = rand(0, CFG.bots.spawnIdle); // 스폰 무적(플레이어와 동일) + 0~spawnIdle초 랜덤 대기 후 행동 시작
   }
@@ -334,7 +343,7 @@ class Bot extends Player {
   hurt(d, by) { if (this.invT > 0) return; /* 스폰 무적: 피해를 받지 않음 */ this.hp -= d; this.sinceHit = 0; this.flash = 0.12; if (by) this.lastHit = by; if (by && by !== this && by.up) { this.grudge = by; this.grudgeLeft = this.grudgeT; } }
   pickTarget(g) { // 점수제 목표 선택(2단계): 후보(탱크 사냥/도주, 도형·크래셔 파밍)마다 점수를 매겨 가장 높은 것을 고르고, 떨림 방지 규칙을 적용. 모든 봇이 같은 식을 쓰며 성격 수치는 입력값으로만 작용
     const p = g.player, F = CFG.botFx, sight = 750 * this.sightMul / this.def.fov, cur = this.target; // 교전 시야: 대담함
-    this.aimErr = (Math.random() * 2 - 1) * this.aimErrMax; // 숙련도: 목표를 고를 때마다 조준 오차를 새로 뽑음
+    if (F.aim.mode === 'legacy') this.aimErr = (Math.random() * 2 - 1) * this.aimErrMax; // 숙련도: 목표를 고를 때마다 조준 오차를 새로 뽑음(이전 방식, 새 방식은 ai()에서 계속 갱신)
     if (Math.random() < 0.15) this.side *= -1;
     const alive = t => t && t.hp > 0 && !t.gone && (t !== p || p.alive);
     const sat = raw => 1 - Math.exp(-raw / F.scoreScale); // 기회 점수(파밍·사냥)를 0~1로 눌러서, 도주 점수(1 이상)가 항상 우선하도록 함
@@ -397,6 +406,16 @@ class Bot extends Player {
     const th = this.threatNow(); if (th) { const away = Math.atan2(this.y - th.y, this.x - th.x); if (Math.abs(adiff(a, away)) > Math.PI - 1) a = away + rand(-0.5, 0.5); } // 도주한 상대 쪽(+/-1라디안) 방향이면 반대쪽으로
     return a;
   }
+  fleeDir(dt, nx, ny, d, sight) { // 도주 방향: 적 반대 + 부드럽게 바뀌는 옆 방향 + 느린 흔들림, 맵 가장자리 쪽이면 중앙으로 틀고, 실제 방향은 turnRate만큼만 돎. nx, ny = 적을 향한 단위벡터, d = 거리
+    const F = CFG.botFx.flee; if (F.mode === 'legacy') return [-nx, -ny];
+    this.fleeSideT -= dt; if (this.fleeSideT <= 0) { this.fleeSideT = rand(F.sideT[0], F.sideT[1]); this.fleeSideGoal = Math.random() < 0.5 ? 1 : -1; }
+    this.fleeSide += clamp(this.fleeSideGoal - this.fleeSide, -F.sideRate * dt, F.sideRate * dt);
+    const near = clamp(1 - d / sight, 0.2, 1), wob = F.wobble * (Math.sin(this.age * 1.9 + this.ph) + Math.sin(this.age * 3.1 + this.ph * 1.7)) / 2, k = F.sideK * near * this.fleeSide + wob;
+    let ux = -nx - ny * k, uy = -ny + nx * k; const l = Math.hypot(ux, uy) || 1, ex = this.x + ux / l * F.lookAhead, ey = this.y + uy / l * F.lookAhead, m = F.edgeMargin;
+    if (ex < MAP.lo + m || ex > MAP.hi - m || ey < MAP.lo + m || ey > MAP.hi - m) { const c = Math.atan2(CFG.world / 2 - this.y, CFG.world / 2 - this.x); ux += Math.cos(c) * F.edgePush; uy += Math.sin(c) * F.edgePush; } // 앞쪽이 가장자리면 중앙 쪽 성분을 더함
+    const da = Math.atan2(uy, ux); this.fa = this.fa === null ? da : turn(this.fa, da, F.turnRate * dt);
+    return [Math.cos(this.fa), Math.sin(this.fa)];
+  }
   ai(dt, g) {
     const p = g.player, W = CFG.world, inp = this.inp, sp = this.spec;
     this.think -= dt; this.t -= dt;
@@ -411,12 +430,25 @@ class Bot extends Player {
       const dx = T.x - this.x, dy = T.y - this.y, d = Math.hypot(dx, dy) || 1, nx = dx / d, ny = dy / d, sx = -ny * this.side, sy = nx * this.side;
       this.lostT = this.kind === 'tank' && d > sight ? this.lostT + dt : 0; // 끈기: 시야 밖에 머문 시간
       const flee = this.mode === 'flee' && this.kind === 'tank', pref = BOT_DIST[this.cls][this.kind === 'tank' ? 0 : 1];
-      if (flee) { ux = -nx; uy = -ny; } else if (this.kind === 'crasher') { if (d < 420) { ux = -nx; uy = -ny; } else { ux = sx; uy = sy; spd = 0.5; } } else if (d > pref + 50) { ux = nx; uy = ny; } else if (d < pref - 50) { ux = -nx; uy = -ny; spd = 0.8; } else { ux = sx; uy = sy; spd = 0.5; }
-      const lt = d / sp.bSpeed; aim = Math.atan2(dy + (T.vy || 0) * lt, dx + (T.vx || 0) * lt) + this.aimErr; // 이동 예측 사격
+      if (!flee) this.fa = null; if (flee) { const fd = this.fleeDir(dt, nx, ny, d, sight); ux = fd[0]; uy = fd[1]; } else if (this.kind === 'crasher') { if (d < 420) { ux = -nx; uy = -ny; } else { ux = sx; uy = sy; spd = 0.5; } } else if (d > pref + 50) { ux = nx; uy = ny; } else if (d < pref - 50) { ux = -nx; uy = -ny; spd = 0.8; } else { ux = sx; uy = sy; spd = 0.5; }
+      const A = CFG.botFx.aim; let lt = d / sp.bSpeed;
+      if (A.mode !== 'legacy') { // 사람다운 조준: 상대 가속, 거리에 따라 커지는 오차, 계속 변하는 오차 각도, 예측 시간 오차, 새 탱크를 노릴 때 지연
+        if (T !== this.accT) { this.accT = T; this.pvx = T.vx || 0; this.pvy = T.vy || 0; this.accS = 0; }
+        else { const da = Math.hypot((T.vx || 0) - this.pvx, (T.vy || 0) - this.pvy) / Math.max(dt, 1e-3); this.pvx = T.vx || 0; this.pvy = T.vy || 0; this.accS += (da - this.accS) * Math.min(1, dt * 5); }
+        this.aimTimer -= dt; if (this.aimTimer <= 0) { this.aimTimer = A.drift * rand(0.7, 1.3); this.aimUT = Math.random() * 2 - 1; }
+        this.aimU += (this.aimUT - this.aimU) * Math.min(1, dt / (A.drift * 0.5));
+        const E = (A.e0 * (1 - this.skill) + A.ed * Math.min(1, d / (sp.bSpeed * sp.life)) + A.ev * Math.min(1, this.accS / A.accRef)) * (A.habit[0] + A.habit[1] * this.habit);
+        this.aimErr = this.aimU * E; lt *= this.leadMul;
+        if (T !== this.lastT) { this.lastT = T; if (this.kind === 'tank' && this.mode === 'hunt') this.lockLeft = A.lockMax - (A.lockMax - A.lockMin) * clamp((this.skill - CFG.botSkill[0]) / Math.max(1e-6, CFG.botSkill[1] - CFG.botSkill[0]), 0, 1); }
+      }
+      aim = Math.atan2(dy + (T.vy || 0) * lt, dx + (T.vx || 0) * lt) + this.aimErr; // 이동 예측 사격
       fire = d < sp.bSpeed * sp.life * 0.85 && Math.abs(adiff(this.angle, aim)) < 0.25 + sp.spread;
     } else {
-      if (this.t <= 0) { this.t = rand(CFG.botFx.wanderTime[0], CFG.botFx.wanderTime[1]); this.wa = this.wanderDir(g); }
-      ux = Math.cos(this.wa); uy = Math.sin(this.wa); spd = 0.4; aim = this.wa;
+      const W = CFG.botFx.wander, nat = W.mode !== 'legacy';
+      if (this.t <= 0) { this.t = rand(CFG.botFx.wanderTime[0], CFG.botFx.wanderTime[1]); const wd = this.wanderDir(g); if (nat) this.waT = wd; else this.wa = wd; }
+      if (nat) this.wa = turn(this.wa, this.waT, W.turnRate * dt); // 새 방향으로 서서히 돎
+      const wb = nat ? W.wobble * (Math.sin(this.age * 0.9 + this.ph) + Math.sin(this.age * 1.7 + this.ph * 1.3)) / 2 : 0; // 느린 흔들림
+      ux = Math.cos(this.wa + wb); uy = Math.sin(this.wa + wb); spd = nat ? W.spdBase + W.spdK * this.pt.g : 0.4; aim = this.wa;
     }
     if (!T) this.lostT = 0;
     let ax = 0, ay = 0; // 도형/크래셔 몸통 회피: 가까워질수록 반대 방향으로 밀어냄 (몸통 충돌 피해로 죽지 않도록)
@@ -429,11 +461,12 @@ class Bot extends Player {
     const thm = this.threatNow(); if (thm && this.mode !== 'hunt' && this.mode !== 'flee') { const tdx = this.x - thm.x, tdy = this.y - thm.y, td = Math.hypot(tdx, tdy) || 1, tR = sight * CFG.botFight.threatMul; if (td < tR) { const w = CFG.botFight.threatPush * (1 - td / tR); ux += tdx / td * w; uy += tdy / td * w; spd = Math.max(spd, 0.7); } } // 파밍·배회 중 도주한 상대의 구역 안이면 바깥으로 밀려남
     if (this.x < MAP.lo + 200 || this.y < MAP.lo + 200 || this.x > MAP.hi - 200 || this.y > MAP.hi - 200) { // 맵 가장자리에서는 중앙 쪽으로
       const c = Math.atan2(W / 2 - this.y, W / 2 - this.x);
-      if (!T) { this.wa = c; ux = Math.cos(c); uy = Math.sin(c); } else { ux += Math.cos(c) * 0.8; uy += Math.sin(c) * 0.8; }
+      if (!T) { this.wa = this.waT = c; ux = Math.cos(c); uy = Math.sin(c); } else { ux += Math.cos(c) * 0.8; uy += Math.sin(c) * 0.8; }
     }
     if ((this.level < 15 || this.hp < this.maxHp * this.fleeHp) && inNest(this.x, this.y, 250)) { const c = Math.atan2(this.y - W / 2, this.x - W / 2); ux += Math.cos(c) * 1.5; uy += Math.sin(c) * 1.5; } // 저레벨 봇은 둥지에서 벗어남
     const l = Math.hypot(ux, uy); if (l > 1) { ux /= l; uy /= l; }
-    inp.ax = ux * spd; inp.ay = uy * spd; inp.fire = fire; this.angle = turn(this.angle, aim, 7 * dt);
+    inp.ax = ux * spd; inp.ay = uy * spd; inp.fire = fire; if (this.lockLeft > 0) this.lockLeft -= dt;
+    this.angle = turn(this.angle, aim, 7 * dt * (this.lockLeft > 0 ? CFG.botFx.aim.lockSlow : 1));
   }
   catchMul() { return this.level < this.targetLv ? CFG.bots.catchUp + CFG.bots.catchUpRamp * this.age : 1; } // 목표 레벨 미만일 때 점수 가속 배율(시간이 지날수록 커짐)
   catchGain(raw) { // 가속된 점수 획득량: 목표 레벨 최소 점수에 닿을 때까지만 가속하고, 그 이상은 가속하지 않아 목표 레벨을 넘어 오르지 않음

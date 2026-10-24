@@ -428,7 +428,7 @@ add(...T(['수치', '연결 대상', '식'], [
   ['복수심 r', '복수 기억 시간', `${FX.grudgeT[0]} + ${FX.grudgeT[1]} × r 초 (시야의 ${FX.grudgeRange}배 거리까지 노림)`],
   ['복수심 r', '복수 대상 점수 가중', `1 + ${FX.grudgeW} × r`],
   ['목표지향 g', '사냥 가중 / 파밍 가중', '2 × g / 2 × (1 − g)  (g = 0.5이면 둘 다 1)'],
-  ['숙련도 s', '조준 오차 (목표를 고를 때마다 새로 뽑음)', `±${FX.aimErr} × (1 − s) 라디안 (s = 0.85~1.0이면 최대 약 0.86도)`],
+  ['숙련도 s', '조준 오차', `${FX.aim.mode === 'legacy' ? '' : '현재는 7.11의 사람다운 조준(오차가 계속 변하고 거리·상대 가속에 비례). '}이전 방식(aim.mode = legacy): 목표를 고를 때마다 ±${FX.aimErr} × (1 − s) 라디안`],
 ], [1700, 3300, W - 5000]));
 add(P('유형별로 계산된 값은 다음과 같습니다.'));
 {
@@ -469,11 +469,11 @@ add(...T(['상황', '이동'], [
   ['도주 (탱크 대상)', '상대 반대 방향으로 전속 이동. 도망치며 조준과 사격은 계속'],
   ['크래셔 대상', '거리 420 미만이면 전속 후퇴, 그 이상이면 좌우로 절반 속도 이동'],
   ['그 밖의 목표 (사냥, 파밍)', '선호 거리 +50보다 멀면 전속 접근, −50보다 가까우면 0.8배 속도로 후퇴, 그 사이면 좌우로 절반 속도 이동. 좌우 방향은 판단 때마다 15% 확률로 뒤집힘'],
-  ['목표 없음', CFG.botFx.wanderTime[0] + '~' + CFG.botFx.wanderTime[1] + '초마다 방향을 새로 정해 40% 속도로 배회. 목표지향 g 확률로 3,500px 안의 가장 가까운 탱크 쪽, 아니면 가장 가까운 도형 군집 쪽(이미 군집 안이면 무작위)으로 향함. 체력이 낮아도 멈춰서 쉬지 않음'],
+  ['목표 없음', CFG.botFx.wanderTime[0] + '~' + CFG.botFx.wanderTime[1] + '초마다 방향을 새로 정해 배회(natural: 속도 ' + FX.wander.spdBase + ' + ' + FX.wander.spdK + ' × g, 방향은 서서히 돌고 느리게 흔들림, 7.11 참고. legacy: 40% 속도, 즉시 방향 전환). 목표지향 g 확률로 3,500px 안의 가장 가까운 탱크 쪽, 아니면 가장 가까운 도형 군집 쪽(이미 군집 안이면 무작위)으로 향함. 체력이 낮아도 멈춰서 쉬지 않음'],
 ], [2600, W - 2600]));
 add(...T(['클래스', '선호 거리(탱크 상대)', '선호 거리(도형 파밍)'], [['Tank', ...BOT_DIST.tank], ['Twin', ...BOT_DIST.twin], ['Sniper', ...BOT_DIST.sniper], ['Machine Gun', ...BOT_DIST.machine], ['Flank Guard', ...BOT_DIST.flank]].map(r => [r[0], r[1] + 'px', r[2] + 'px']), [2800, 3400, W - 6200], { align: [AlignmentType.LEFT, CT, CT] }));
 add(...BUL([
-  '**조준과 사격:** 목표의 속도를 반영한 이동 예측 조준(총알 도달 시간 = 거리 ÷ 총알 속도)에 조준 오차를 더하고, 포신은 초당 7라디안으로 돌립니다. 사거리(총알 속도 × 지속시간 × 0.85) 안이고 조준 오차가 `0.25 + 탄 퍼짐` 라디안 이내일 때 발사합니다.',
+  '**조준과 사격:** 목표의 속도를 반영한 이동 예측 조준(총알 도달 시간 = 거리 ÷ 총알 속도)에 조준 오차를 더하고(7.11), 포신은 초당 7라디안으로 돌립니다(새 탱크를 노린 직후에는 잠깐 느림). 사거리(총알 속도 × 지속시간 × 0.85) 안이고 조준 오차가 `0.25 + 탄 퍼짐` 라디안 이내일 때 발사합니다.',
   '**몸통 회피:** 도형은 `반지름 + 50 + 몸통 피해 × 4`, 크래셔는 `반지름 + 90` 안에 들어오면 반대 방향 힘으로 밀려나며(가까울수록 강함), 회피 중에는 속도가 최소 0.9가 됩니다.',
   '**맵 가장자리:** 경계에서 200px 안이면 중앙 쪽으로 향합니다(목표가 있으면 중앙 방향을 더함).',
   '**둥지:** 15레벨 미만이거나 체력이 도망 기준보다 낮은 봇은 둥지 반지름 + 250 안에서 바깥으로 밀려납니다.',
@@ -555,6 +555,18 @@ add(H2('7.10 도주 후 위협 기억과 도형 후보 거리'));
   add(NOTE('**효과는 측정 전입니다.** 상대가 계속 쫓아오면 기억과 무관하게 다시 도주합니다. 위협 구역에서 도형이 빠지므로 배회 시간이 조금 늘 수 있고, 군집 한 구역을 다른 봇이 차지하면 그 구역을 비웁니다. `aicheck`(재교전을 상대가 쫓아온 경우와 봇이 스스로 돌아간 경우로 나눔, 3초 안 되돌림 패턴, 배회 방문 시간, 파밍을 잃은 순간의 도형 거리)와 `memorycheck`로 확인합니다.', 'warn'));
 }
 
+add(H2('7.11 사람다운 조준·도주·배회'));
+{
+  const W = FX.wander, FL = FX.flee, A = FX.aim;
+  add(P('단순한 봇이 기계처럼 보이는 가장 큰 이유는 완벽한 조준과 직선 도주입니다. 웹 조사에서 확인한 사례(FPS 봇 연구, BotPrize 우승 봇이 빠른 움직임과 원거리의 정확도를 일부러 제한한 점, 게임 AI의 조향 행동을 가중합하는 표준 방식과 노이즈 배회)를 참고해 세 가지를 바꿨습니다. 세 항목은 각각 `mode`를 `legacy`로 두면 이전 동작으로 돌아갑니다.'));
+  add(...BUL([
+    '**배회(wander.mode = ' + W.mode + '):** 속도 = ' + W.spdBase + ' + ' + W.spdK + ' × g (g = 목표지향 0~1, 이전에는 고정 0.4). 새 방향은 즉시 바꾸지 않고 초당 ' + W.turnRate + '라디안으로 서서히 돌며, 서로 다른 주기의 사인 두 개를 합친 느린 흔들림(최대 ±' + W.wobble + '라디안)이 더해집니다.',
+    '**도주(flee.mode = ' + FL.mode + '):** 도주 방향 u = (적 반대 단위벡터 −n) + p × k. p는 n에 수직인 단위벡터, k = sideK × 가까움 × 옆방향 + 흔들림이고 (sideK = ' + FL.sideK + ', 가까움 = 1 − 거리 ÷ 시야를 0.2~1로 제한, 옆방향 = −1~1, 흔들림 = 최대 ±' + FL.wobble + '). 옆방향은 ' + FL.sideT[0] + '~' + FL.sideT[1] + '초마다 반대로 바뀌지만 초당 ' + FL.sideRate + '의 속도로 부드럽게 전환합니다. 앞쪽 ' + FL.lookAhead + 'px 지점이 맵 가장자리 ' + FL.edgeMargin + 'px 안이면 중앙 쪽 성분(' + FL.edgePush + ')을 더합니다. 실제 이동 방향은 초당 ' + FL.turnRate + '라디안까지만 돌 수 있어 급회전이 없습니다.',
+    '**조준(aim.mode = ' + A.mode + '):** 오차 최대 E = (e0 × (1 − s) + ed × min(1, d ÷ D) + ev × min(1, a ÷ accRef)) × (habit[0] + habit[1] × h). s = 숙련도, d = 상대까지 거리, D = 총알 사거리(속도 × 지속시간), a = 상대 속도의 초당 변화량(가속, 이동평균), h = 봇마다 고정된 습관(0~1), e0 = ' + A.e0 + ', ed = ' + A.ed + ', ev = ' + A.ev + ', accRef = ' + A.accRef + ', habit = ' + JSON.stringify(A.habit) + '. 오차 각도는 −E~+E 사이에서 약 ' + A.drift + '초마다 새 값으로 부드럽게 이동합니다(한 번 뽑고 고정하지 않음). 총알 도달 시간에 봇마다 고정된 배율 1 ± ' + A.leadErr + '를 곱해 예측이 조금씩 어긋나고, 새 탱크를 노리기 시작하면 숙련도에 따라 ' + A.lockMax + '(낮은 숙련도)~' + A.lockMin + '(높은 숙련도)초 동안 포신 회전 속도가 ' + A.lockSlow + '배가 됩니다.',
+  ]));
+  add(NOTE('**측정 결과(시뮬레이션, 표본이 작아 오차가 큼):** `traitcheck`로 확인한 정지한 상대 20초 조준에서 최대 오차 0.036라디안(거리 400px 상한 0.0377)이었고, 오차 각도는 1,200프레임 중 1,194프레임에서 변했습니다. `sanity`(6분)는 이상 없음이었습니다. 도주(`aicheck`, 시드 11, 3회 합계)는 세 설정을 비교했습니다: 전부 새 방식 도주 159건·탈출 114건(72%)·도주 중 사망 21건(13%), 도주만 이전 방식 156건·106건(68%)·27건(17%), 전부 이전 방식 189건·147건(78%)·15건(8%). 건수가 150~190건이라 표준오차가 약 3.5%포인트여서, 이 차이(탈출률 약 6%포인트, 사망률 약 5%포인트)는 **통계적으로 구분되지 않는다고 봐야 합니다(계산한 추정, 약 1.3~1.5 표준편차).** 시드 1 한 판에서는 봇 사망이 분당 1.4회에서 2.4회로 늘었지만(`types`, 사망 7건 → 12건) 표본이 작아 원인을 가리지 못했습니다. 같은 시드의 `pop`은 분당 사망 1.80에서 1.83으로 거의 같았습니다. 더 많은 시드로 사망 증가와 도주 성공률을 확인해야 합니다.', 'warn'));
+}
+
 /* =================== 8. 화면과 개발자 모드 =================== */
 add(H1('8. 화면, 사운드, 개발자 모드'));
 add(H2('8.1 화면 구성'));
@@ -614,7 +626,7 @@ add(...T(['이름', '값', '의미'], [
   ['botFight.mode', CFG.botFight.mode, 'power = 전투 우위 R 방식(현재), legacy = 이전 방식(레벨 차이·체력 비율)'], ['botFight.offBase / offPow', `${CFG.botFight.offBase} / ${CFG.botFight.offPow}`, '공격력 = (1 + (레벨−1) ÷ offBase)^offPow'], ['botFight.needBase / needBold / thrMul', `${CFG.botFight.needBase} / ${CFG.botFight.needBold} / ${CFG.botFight.thrMul}`, '싸움 기준 = thrMul × (needBase − needBold × 대담함)'], ['botFight.hyst / fightHold / fleeHold', `${CFG.botFight.hyst} / ${CFG.botFight.fightHold} / ${CFG.botFight.fleeHold}`, '기준의 ± 여유 비율 / 싸움 유지 시간 / 도주 유지 시간(초)'], ['botFight.grudgeNeed', CFG.botFight.grudgeNeed, '복수 대상에게 곱하는 싸움 기준 배수'], ['botFight.easeDiv / easeMin / easeMax', `${CFG.botFight.easeDiv} / ${CFG.botFight.easeMin} / ${CFG.botFight.easeMax}`, '쉬움 보정 = clamp(R ÷ (easeDiv × 기준), easeMin, easeMax)'], ['botFight.breakRatio', CFG.botFight.breakRatio, '싸우는 중 R이 기준 × 이 값 밑이면 유지 시간 무시(0 = 꺼짐)'],
   ['botFx.fleeBase / fleeReleaseGap / fleeReleaseHp', `${FX.fleeBase} / ${FX.fleeReleaseGap} / ${FX.fleeReleaseHp}`, '도주 기본 점수 / 해제 레벨 여유 / 해제 체력 여유'], ['botFx.stayBase / stayK', `${FX.stayBase} / ${FX.stayK}`, '유지 보너스 = stayBase + stayK × 끈기'], ['botFx.holdBase / holdK', `${FX.holdBase} / ${FX.holdK}`, '최소 유지 시간(초) = holdBase + holdK × 끈기'],
   ['botBuild.up / dn / lo / hi', `${CFG.botBuild.up} / ${CFG.botBuild.dn} / ${CFG.botBuild.lo} / ${CFG.botBuild.hi}`, '능력치 편향 배수의 + 한도 / − 한도 / 최종 하한 / 상한'], ['botBuild.cls', JSON.stringify(CFG.botBuild.cls), '클래스를 고른 뒤 올리는 능력치 배수'],
-  ['botFx.grudgeW', FX.grudgeW, '복수 가중 = 1 + grudgeW × 복수심'], ['botFx.huntSense / farmSense', `${n0(FX.huntSense)} / ${n0(FX.farmSense)}`, '대상이 없을 때 배회 방향을 정하는 감지 거리(px)'], ['botFx.wanderTime', `${FX.wanderTime[0]} ~ ${FX.wanderTime[1]}`, '대상이 없을 때 배회 방향을 새로 뽑는 간격(초) 범위'], ['botFx.farmIn / farmOut', `${FX.farmIn} / ${FX.farmOut}`, '도형 후보에 새로 들어오는 거리 / 이미 노리는 도형을 유지하는 최대 거리(px)'], ['botFx.crasherIn / crasherOut', `${FX.crasherIn} / ${FX.crasherOut}`, '크래셔 후보에 새로 들어오는 거리 / 이미 노리는 크래셔를 유지하는 최대 거리(px)'], ['botFight.fleeMemory', CFG.botFight.fleeMemory, '도주한 상대를 기억하는 시간(초, 0 = 끔)'], ['botFight.threatMul / threatPush', `${CFG.botFight.threatMul} / ${CFG.botFight.threatPush}`, '피할 구역 반지름 = 교전 시야 × threatMul / 구역 안에서 바깥으로 미는 최대 세기'],
+  ['botFx.grudgeW', FX.grudgeW, '복수 가중 = 1 + grudgeW × 복수심'], ['botFx.huntSense / farmSense', `${n0(FX.huntSense)} / ${n0(FX.farmSense)}`, '대상이 없을 때 배회 방향을 정하는 감지 거리(px)'], ['botFx.wanderTime', `${FX.wanderTime[0]} ~ ${FX.wanderTime[1]}`, '대상이 없을 때 배회 방향을 새로 뽑는 간격(초) 범위'], ['botFx.farmIn / farmOut', `${FX.farmIn} / ${FX.farmOut}`, '도형 후보에 새로 들어오는 거리 / 이미 노리는 도형을 유지하는 최대 거리(px)'], ['botFx.crasherIn / crasherOut', `${FX.crasherIn} / ${FX.crasherOut}`, '크래셔 후보에 새로 들어오는 거리 / 이미 노리는 크래셔를 유지하는 최대 거리(px)'], ['botFx.wander', JSON.stringify(FX.wander), '배회: mode(natural/legacy), 속도 = spdBase + spdK × 목표지향, turnRate 회전 속도(라디안/초), wobble 흔들림(라디안)'], ['botFx.flee', JSON.stringify(FX.flee), '도주: mode, sideK 옆 성분, wobble 흔들림, sideT 옆방향 전환 간격(초), sideRate 전환 속도, turnRate 회전 속도, lookAhead/edgeMargin/edgePush 가장자리 회피'], ['botFx.aim', JSON.stringify(FX.aim), '조준: mode(human/legacy), e0·ed·ev 오차 계수, accRef 기준 가속, drift 오차 변화 주기(초), habit 습관 배율, leadErr 예측 오차, lockMax/lockMin/lockSlow 노림 지연'], ['botFight.fleeMemory', CFG.botFight.fleeMemory, '도주한 상대를 기억하는 시간(초, 0 = 끔)'], ['botFight.threatMul / threatPush', `${CFG.botFight.threatMul} / ${CFG.botFight.threatPush}`, '피할 구역 반지름 = 교전 시야 × threatMul / 구역 안에서 바깥으로 미는 최대 세기'],
 ], [3000, 1900, W - 4900], { size: 17 }));
 
 /* =================== 10. 테스트 도구와 측정 결과 =================== */
@@ -793,6 +805,8 @@ add(...NUM([
   '레벨 15 미만 봇의 둥지 규칙 3개(둥지 도형을 파밍 후보에서 제외, 둥지 반지름 + 250 안에서 밀려남, 둥지 반지름 + 900 안 소환 제외)를 한 번 삭제했다가 다시 복원. 봇 배회 방향 갱신 간격을 5~10초로 변경(botFx.wanderTime).',
   '도주 후 위협 기억(botFight.fleeMemory 5초: 후보 제외, 구역에서 밀려남, 배회 방향 보정)과 도형·크래셔 후보의 들어오는/벗어나는 거리 분리(botFx.farmIn 900 / farmOut 1200, crasherIn 700 / crasherOut 900) 추가. fleeMemory 0과 farmOut = farmIn으로 이전 동작 복귀.',
   '테스트 도구에 aicheck(봇 AI 측정)와 memorycheck 시나리오 추가.',
+  '봇 AI 사람다운 행동 개선: 배회 속도·방향 변경(botFx.wander), 도주 방향에 옆 성분·흔들림·회전 속도 제한·가장자리 회피(botFx.flee), 조준 오차가 계속 변하고 거리·상대 가속에 비례하며 노림 지연·습관·예측 오차 추가(botFx.aim). 각 mode를 legacy로 두면 이전 동작.',
+  'npm run check에 짧은 sanity 추가, 문서 생성기가 ../game.js를 읽고 docs/에 출력하도록 경로 수정, traitcheck에 사람다운 조준 확인([6b]) 추가.',
   '리더보드 변경: 아이콘 방향(1위 왼쪽, 나머지 오른쪽), 아이콘이 게이지 끝에 붙어 다님, 게이지 연초록·탱크 모두 파랑, 짙은 회색 알약 트랙·알약 게이지, 글자를 아이콘 위에 표시, 게이지가 목표 길이로 부드럽게 이동(scoreboardSmooth).',
   '테스트 도구에 knockcheck, rulecheck, clashcheck, ttk, sanity 시나리오 추가.',
   '총알의 밀림과 꺾임을 질량 모델로 구현(대상은 총알 방향으로 밀리고 총알은 비껴 맞으면 꺾임, 무적 대상은 밀리지 않음). 기존의 처음 닿을 때 속도의 2%만 미는 방식은 삭제.',
