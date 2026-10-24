@@ -393,6 +393,9 @@ S.classcheck = () => { // 전직 규칙 확인과 클래스별 초당 발사 수
   g.chooseClass('twin'); chk(P.cls === 'twin', 'Tank 30레벨에서 twin 선택 가능'); g.chooseClass('sniper'); chk(P.cls === 'twin', 'twin에서 다른 15레벨 클래스(sniper)로 바꿀 수 없음');
   g.chooseClass('quadtank'); chk(P.cls === 'quadtank', 'twin 30레벨에서 quadtank 선택 가능'); g.chooseClass('triple'); chk(P.cls === 'quadtank', '이미 고른 뒤 다시 고를 수 없음');
   const P2 = fresh({ level: 29 }); P2.setLevel(29); g.chooseClass('twin'); g.chooseClass('triple'); chk(P2.cls === 'twin', '29레벨 twin은 triple을 고를 수 없음');
+  say('[2b] 화면(UI) 타일: 30레벨에서 draw 뒤 g.ui.tiles 개수 (선택지 수와 같아야 함)');
+  for (const k of C.classOrder) { const Q = fresh({ level: 30 }); Q.setLevel(30); Q.setClass(k); g.state = 'play'; try { g.draw(); } catch (e) { chk(false, k + ' draw 오류: ' + e.message); } const want = C.classUp30[k].length; say('    ' + k.padEnd(8) + '타일 ' + g.ui.tiles.length + '개 [' + g.ui.tiles.map(t => t.k).join(',') + '] (기대 ' + want + '개)'); chk(g.ui.tiles.length === want, k + ' 30레벨 타일 수가 선택지 수와 같아야 함'); }
+  { const Q = fresh({ level: 15 }); Q.setLevel(15); g.state = 'play'; g.draw(); say('    tank 15레벨 타일 ' + g.ui.tiles.length + '개 (기대 ' + C.classOrder.length + '개)'); chk(g.ui.tiles.length === C.classOrder.length, 'Tank 15레벨 타일은 4개'); }
   say('    위반 ' + bad + '건');
   say('[3] 봇 선택 분포 (Tank 상태로 레벨 45에서 시작하는 봇 1,000마리)');
   const cnt = {}; for (let i = 0; i < 1000; i++) { const b = new Bot(MAP.lo + 500, MAP.lo + 500, 1, 'T'); for (let L = 2; L <= 45; L++) b.addXp(C.scoreAt[L] - b.score); cnt[b.cls] = (cnt[b.cls] || 0) + 1; chk(tierOf(b.cls) === 3 || (C.classUp30[b.cls] || []).length === 0, '봇이 30레벨 선택지가 있는 15레벨 클래스에서 멈춤: ' + b.cls); }
