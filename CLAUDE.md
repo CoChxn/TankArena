@@ -7,7 +7,7 @@ HTML/CSS/바닐라 JS(Canvas). 외부 에셋과 빌드 도구는 없고, `index.
 - `tests/run.js`: 가짜 DOM으로 `game.js`를 화면 없이 돌리는 시뮬레이션 테스트(Node.js만 필요). `tests/hdr.js`, `seed.js`, `t_*.js`는 이전 단계의 보조 도구.
 - `docs/build_doc.js`: 게임 작동 원리 문서(`Tank_Arena_Mechanics_Review.docx`) 생성기. `npm install` 후 `node docs/build_doc.js`. 문서는 `docs/Tank_Arena_Mechanics_Review.docx`로 저장소 안에 생성된다(`DOC_OUT` 환경변수로 경로 변경).
 - `docs/PENDING.md`: 문서에 아직 반영하지 않은 작은 수정 목록(문서의 기준 해시 포함).
-- `backups/`: 큰 변경 직전 백업(`날짜_이름/`, `README.txt`에 복원 방법). 없을 수 있다.
+- `backups/`: 예전 백업 폴더. 지금은 git 커밋으로 대체했고 이 저장소에는 없다.
 
 ## 설정 위치 (`game.js` 위쪽)
 공통 수치(총알, 반동, 체력, 맵 등)와 `CFG.bots`(소환·성장), `CFG.botTypes`(성격 7유형), `CFG.botFx`(성격 수치 → 행동), `CFG.botFight`(싸움·도주 판단 R, 위협 기억), `CFG.botBuild`(능력치 투자), `CFG.scoreboardSmooth`.
@@ -23,7 +23,7 @@ HTML/CSS/바닐라 JS(Canvas). 외부 에셋과 빌드 도구는 없고, `index.
 - **시뮬레이션 테스트는 사용자가 하라고 할 때만 실행한다. 필요해 보이면 실행하지 말고 먼저 물어본다.** 코드를 고친 뒤 문법 검사(`npm run check`)는 항상 한다.
 
 ## 작업 규칙
-1. 코드를 고치기 전에 `backups/날짜_이름/`에 백업하고 `README.txt`에 복원 방법을 적는다. git으로 대체할지는 사용자에게 먼저 묻는다.
+1. 큰 변경 전에는 `backups/` 폴더 대신 git 커밋으로 현재 상태를 남긴다(복원: `git revert` 또는 `git checkout <커밋> -- 파일`). 작업이 끝나면 지정된 브랜치로 푸시하고, PR은 사용자가 요청할 때만 만든다.
 2. 설계는 먼저 말로 설명하고(영향과 위험 포함), 사용자가 "코드짜"라고 하면 구현한다. "수정하지 말고"라고 하면 파일을 바꾸지 않는다.
 3. 규칙에 영향을 주는 변경이면 `docs/build_doc.js`를 고쳐 문서를 다시 만든다. 표시나 개발자 도구 같은 작은 수정은 `docs/PENDING.md`에 모아 두고, 사용자가 요청하거나 파일을 보낼 때 한꺼번에 반영한다.
 4. 문서의 설정 표(9장)와 부록 A는 새 설정을 추가할 때마다 같이 갱신한다. 문서의 7장 이후 표는 `game.js`의 `CFG` 값을 읽어서 만든다.
