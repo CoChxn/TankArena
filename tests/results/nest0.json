@@ -1,0 +1,25 @@
+{
+ "game": "350c0f2eb9d1",
+ "sets": [],
+ "seed": "1",
+ "names": [
+  "nest",
+  "shapeflow",
+  "sanity"
+ ],
+ "results": {
+  "nest.pentPerHex": 26.6,
+  "shapeflow.tail": 1425.8,
+  "shapeflow.kill.cluster": 0.7567,
+  "shapeflow.spawn.cluster": 5.06,
+  "shapeflow.kill.free": 5.35,
+  "shapeflow.spawn.free": 1.59,
+  "shapeflow.kill.nest": 0,
+  "shapeflow.spawn.nest": 0.0133,
+  "shapeflow.total": 1430.7,
+  "sanity.issues": 0,
+  "sanity.maxTankV": 292.8486,
+  "sanity.maxShapeV": 201.816,
+  "sanity.updMs": 0.7533
+ }
+}
