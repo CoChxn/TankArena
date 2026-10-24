@@ -136,7 +136,7 @@ add(...T(['주기', '값', '내용'], [
   ['프레임', '브라우저 프레임, dt 최대 0.05초', '이동, 총알, 도형 이동 등 연속 갱신'],
   ['충돌 틱', `${TICK}초 (초당 25회)`, '몸통 충돌 피해(한 틱에 한 번씩 서로 피해), 도형 겹침 해소'],
   ['봇 판단', '0.25~0.5초마다 (무작위)', '목표 재선정(점수 계산). 이동과 사격은 매 프레임'],
-  ['도형 틱', '0.4초', '일반 도형 최대 3개, 군집당 2개, 둥지 오각형 2개 보충, 군집 이동·정리'],
+  ['도형 틱', '0.4초', '일반 도형 최대 3개, 군집은 초당 ' + CFG.clusters.refill + '개 속도로(누적, 한 틱 최대 2개), 둥지 오각형 2개 보충, 군집 이동·정리'],
   ['크래셔 보충', '1.5초', '목표 수보다 적으면 1마리 추가'],
   ['봇 소환', `${B.spawnEvery}초 (실패하면 0.5초 뒤 재시도)`, '봇 수가 목표보다 적을 때'],
   ['알파 오각형 재등장', `${N.alphaRespawn}초`, '둥지의 알파가 없어진 뒤 이 시간이 지나면 하나 생성'],
@@ -375,7 +375,7 @@ add(...T(['항목', '값'], [
   ['전체 구성비(기댓값)', `사각형 ${f1(clComp.square * 100)}%, 삼각형 ${f1(clComp.triangle * 100)}%, 오각형 ${f1(clComp.pentagon * 100)}%`],
   ['수명과 이동', `수명 ${K.life}초(×0.8~1.2). 수명이 끝나거나, 30초가 지난 뒤 도형이 목표의 ${K.depleted * 100}% 미만이거나, 맵 경계·둥지에 가까워지면 다른 곳으로 이동(남은 도형은 일반 도형이 됨)`],
   ['위치 조건', `둥지에서 반지름 + 300 이상, 다른 군집과 ${K.minGap}px 이상, 플레이어 시야(평소 기준) 밖`],
-  ['보충', '0.4초마다 군집당 최대 2개'],
+  ['보충', `군집당 초당 최대 ${K.refill}개(이전 5개/초 = 0.4초마다 2개). 0.4초마다 ${K.refill} × 0.4씩 누적해 1이 넘으면 생성하고, 화면 안이라 막혀도 한 틱 최대 2개까지만 몰아서 생성. 목표 개수(도형 수)는 보충을 느리게 한 만큼 면적 × density로 이전보다 20% 높임`],
 ], [2300, W - 2300]));
 add(H3('(3) 중앙 Pentagon Nest와 크래셔'));
 add(...T(['항목', '값'], [
@@ -626,7 +626,7 @@ add(...T(['이름', '값', '의미'], [
 add(H2('9.2 맵, 군집, 둥지, 크래셔'));
 add(...T(['이름', '값', '의미'], [
   ['map.areaPerTank', n0(CFG.map.areaPerTank), '탱크 1대당 면적'], ['map.min / max', `${n0(CFG.map.min)} / ${n0(CFG.map.max)}`, '맵 한 변 범위'], ['map.rate', CFG.map.rate, '맵 크기 변화 속도(px/초)'], ['map.smooth', CFG.map.smooth, '탱크 수 평균 시간(초)'],
-  ['clusters.areaPerCluster', n0(K.areaPerCluster), '군집 1개당 맵 면적'], ['clusters.maxCount', K.maxCount, '군집 최대 수'], ['clusters.rMin / rMax', `${K.rMin} / ${K.rMax}`, '군집 반지름 범위'], ['clusters.density', K.density.toExponential(), '군집 안 도형 밀도'], ['clusters.life', K.life, '군집 수명(초)'], ['clusters.minGap', K.minGap, '군집 사이 최소 거리'], ['clusters.depleted', K.depleted, '이 비율 미만이면 이동(30초 후)'],
+  ['clusters.areaPerCluster', n0(K.areaPerCluster), '군집 1개당 맵 면적'], ['clusters.refill', K.refill, '군집 도형 보충 속도(개/초, 이전 5). density는 이전 2.8e-5에서 x1.2'], ['clusters.maxCount', K.maxCount, '군집 최대 수'], ['clusters.rMin / rMax', `${K.rMin} / ${K.rMax}`, '군집 반지름 범위'], ['clusters.density', K.density.toExponential(), '군집 안 도형 밀도'], ['clusters.life', K.life, '군집 수명(초)'], ['clusters.minGap', K.minGap, '군집 사이 최소 거리'], ['clusters.depleted', K.depleted, '이 비율 미만이면 이동(30초 후)'],
   ['nest.r', N.r, '둥지 반지름(맵 refMap 기준)'], ['nest.refMap', n0(N.refMap), '둥지 크기 기준 맵 크기'], ['nest.pentagons', N.pentagons, '둥지 오각형(기준)'], ['nest.hexagons / hexRespawn', `${N.hexagons} / ${N.hexRespawn}`, '둥지 육각형 수 / 재등장 시간'], ['nest.alphaMax / alphaRespawn', `${N.alphaMax} / ${N.alphaRespawn}`, '알파 최대 수 / 재등장 시간(초)'], ['nest.crasherMax / largeRatio', `${N.crasherMax} / ${N.largeRatio}`, '크래셔 기준 수 / 큰 것 비율'],
 ], [2800, 1700, W - 4500]));
 add(H2('9.3 봇'));
@@ -817,6 +817,7 @@ add(...NUM([
   '레벨 15 미만 봇의 둥지 규칙 3개(둥지 도형을 파밍 후보에서 제외, 둥지 반지름 + 250 안에서 밀려남, 둥지 반지름 + 900 안 소환 제외)를 한 번 삭제했다가 다시 복원. 봇 배회 방향 갱신 간격을 5~10초로 변경(botFx.wanderTime).',
   '도주 후 위협 기억(botFight.fleeMemory 5초: 후보 제외, 구역에서 밀려남, 배회 방향 보정)과 도형·크래셔 후보의 들어오는/벗어나는 거리 분리(botFx.farmIn 900 / farmOut 1200, crasherIn 700 / crasherOut 900) 추가. fleeMemory 0과 farmOut = farmIn으로 이전 동작 복귀.',
   '테스트 도구에 aicheck(봇 AI 측정)와 memorycheck 시나리오 추가.',
+  '군집 도형 보충 속도를 군집당 5개/초에서 1개/초로 낮추고(clusters.refill), 총량 유지를 위해 군집 목표 도형 수를 20% 올림(clusters.density 2.8e-5 → 3.36e-5). refill 5, density 2.8e-5로 이전 동작 복귀. 측정(시드 1, 15분, 1회): 전체 도형 수 평균 1,336 → 1,348, 군집 처치 6.66 → 2.76개/초, 일반 도형 처치 3.42 → 4.35개/초, 봇 사망 `pop` 분당 1.6 → 2.2, 봇의 탱크 처치 점수 비중 13.9% → 23.7%, `fp`(가짜 플레이어) 15분 뒤 레벨 44 → 37(표본 1회, 오차 큼). 테스트 도구에 shapeflow 시나리오 추가.',
   '총알 한 발이 탱크 한 대에 주는 총 피해에 범위(bulletRange: 하한 Dt × 1.5, 상한 Dt × (0.8 + 0.25 × P))를 둠. 측정 최소 2.7 → 6.8, 최대 233.3 → 109.9. 테스트 도구에 dmgrange 시나리오 추가. bulletRange.mode = legacy로 이전 동작 복귀.',
   '몸통 충돌: 사각형·삼각형·오각형이 탱크와 부딪힐 때 질량을 0.35배로 계산해 탱크가 덜 멈추게 변경(bodyPhys). 테스트 도구에 bodycheck 시나리오 추가. bodyPhys.mode = legacy로 이전 동작 복귀.',
   '봇 AI 사람다운 행동 개선: 배회 속도·방향 변경(botFx.wander), 도주 방향에 옆 성분·흔들림·회전 속도 제한·가장자리 회피(botFx.flee), 조준 오차가 계속 변하고 거리·상대 가속에 비례하며 노림 지연·습관·예측 오차 추가(botFx.aim). 각 mode를 legacy로 두면 이전 동작.',

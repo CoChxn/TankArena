@@ -35,7 +35,7 @@ const CFG = {
   },
   // 도형 군집(소형 둥지): 맵 곳곳에 도형이 모여 있는 구역. 일정 시간이 지나거나 대부분 파괴되면 다른 곳으로 옮겨감
   map: { areaPerTank: 25e6, min: 7000, max: 23000, rate: 100, smooth: 30 }, // 맵 한 변 = sqrt(전체 탱크 수 x areaPerTank), min~max 제한, 초당 rate만큼 서서히 변화
-  clusters: { areaPerCluster: 33e6, maxCount: 7, rMin: 560, rMax: 720, density: 2.8e-5, life: 480, minGap: 2000, depleted: 0.3 }, // 반지름은 rMin~rMax 사이 무작위, 도형 수 = 면적 x density
+  clusters: { areaPerCluster: 33e6, maxCount: 7, rMin: 560, rMax: 720, density: 3.36e-5, refill: 1, life: 480, minGap: 2000, depleted: 0.3 }, // refill = 군집 한 곳이 도형을 다시 채우는 최대 속도(개/초, 이전 5 = 0.4초마다 2개), density = 면적당 목표 도형 수(이전 2.8e-5, 보충을 느리게 한 만큼 x1.2). 이전 동작으로 돌리려면 refill 5, density 2.8e-5 // 반지름은 rMin~rMax 사이 무작위, 도형 수 = 면적 x density
   nest: { r: 1100, refMap: 16583, pentagons: 40, hexagons: 0, hexRespawn: 40, alphaMax: 1, alphaRespawn: 120, crasherMax: 22, largeRatio: 0.35 }, // 맵 중앙의 Pentagon Nest. r/pentagons/crasherMax는 맵 한 변이 refMap일 때의 값이고, 반지름은 맵 크기에 비례, 오각형·크래셔 수는 면적에 비례(밀도 동일), 알파는 항상 alphaMax개
   // 탱크 클래스. 배율은 기본 Tank 기준(diep.io 위키 참고). 배럴 값은 탱크 반지름(r) 배율:
   // len 길이, w 밑 너비, w2 끝 너비, off 옆 오프셋, ang 방향 회전, size 총알 크기 배율
@@ -1003,7 +1003,8 @@ class Game {
       for (const c of this.clusters) {
         c.age += 0.4;
         if (c.age > c.life || (c.age > 30 && c.n < c.target * CFG.clusters.depleted) || c.x - c.r < MAP.lo + 100 || c.x + c.r > MAP.hi - 100 || c.y - c.r < MAP.lo + 100 || c.y + c.r > MAP.hi - 100 || Math.hypot(c.x - cx, c.y - cx) < NEST.r + c.r) { for (const s of this.shapes) if (s.cl === c) s.cl = null; this.newCluster(c); continue; } // 소진/수명 종료: 남은 도형은 일반 도형이 되고 군집은 다른 곳으로 이동
-        for (let g = 2; c.n < c.target && g-- > 0; c.n++) this.spawnShape(false, false, null, c);
+        c.acc = Math.min((c.acc || 0) + CFG.clusters.refill * 0.4, 2); /* 보충 속도: 초당 refill개를 누적해 정수만큼 생성(밀린 만큼 한꺼번에 몰리지 않도록 한 틱 최대 2개) */
+        for (let g = Math.floor(c.acc + 1e-9); c.n < c.target && g-- > 0;) if (this.spawnShape(false, false, null, c) !== false) { c.acc -= 1; c.n++; }
       }
       { // 군집 수는 맵 면적에 비례 (경계값에서 늘었다 줄었다 하지 않도록 0.3 히스테리시스)
         const want = Math.min(CFG.clusters.maxCount, MAP.size * MAP.size / CFG.clusters.areaPerCluster);
