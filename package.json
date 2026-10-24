@@ -2,9 +2,10 @@
   "name": "tank-arena",
   "private": true,
   "scripts": {
-    "check": "node --check game.js && node --check tests/run.js && node --check docs/build_doc.js"
+    "check": "node --check game.js && node --check tests/run.js && node --check docs/build_doc.js && node tests/run.js sanity --min 0.3 --runs 1 --seed 1",
+    "docs": "node docs/build_doc.js"
   },
   "dependencies": {
-    "docx": "*"
+    "docx": "9.14.0"
   }
 }

@@ -1,13 +1,14 @@
 // Tank Arena 게임 작동 원리 문서(docx) 생성 스크립트
 // 사용: node docs/build_doc.js  (게임 폴더에서 실행, game.js의 CFG를 읽어 수치 표를 자동 계산)
 // 규칙: 코드를 바꿀 때 이 스크립트의 설명 문장(수작업 부분)도 함께 고치고 다시 생성한다. 수치 표는 game.js에서 자동으로 갱신된다.
-// 출력: /mnt/user-data/outputs/Tank_Arena_Mechanics_Review.docx
+// 출력: docs/Tank_Arena_Mechanics_Review.docx (DOC_OUT 환경변수로 경로 변경)
 const fs = require('fs'), crypto = require('crypto');
 const D = require('docx');
+const DOC_OUT = process.env.DOC_OUT || require('path').join(__dirname, 'Tank_Arena_Mechanics_Review.docx');
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, ShadingType, BorderStyle, AlignmentType, HeadingLevel, LevelFormat, Footer, PageNumber } = D;
 
 /* ---------- game.js에서 설정값 읽기 (게임 실행 아님: 상수와 순수 함수만 평가) ---------- */
-const GP = '/mnt/user-data/outputs/tank-arena/game.js';
+const GP = require('path').join(__dirname, '..', 'game.js');
 const src = fs.readFileSync(GP, 'utf8'), lines = src.split('\n');
 const cut = lines.findIndex(l => l.startsWith('/* ============ 유틸'));
 const botLines = lines.filter(l => /^const (BOT_DIST|BOT_BUILD|BOT_CLASS_W) /.test(l));
@@ -830,4 +831,4 @@ const doc = new Document({
     footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [run('Tank Arena 중간 점검 문서 · ', { size: 16, color: '808080' }), new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 16, color: '808080' })] })] }) },
     children: out }],
 });
-Packer.toBuffer(doc).then(buf => { fs.writeFileSync('/mnt/user-data/outputs/Tank_Arena_Mechanics_Review.docx', buf); console.log('docx 생성 완료', buf.length, '바이트, 요소', out.length); });
+Packer.toBuffer(doc).then(buf => { fs.writeFileSync(DOC_OUT, buf); console.log('docx 생성 완료', buf.length, '바이트, 요소', out.length); });
