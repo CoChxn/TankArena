@@ -44,7 +44,7 @@ const CFG = {
   classOrder: ['twin', 'sniper', 'machine', 'flank'],
   // 30레벨 전직: 15레벨에서 고른 클래스 -> 고를 수 있는 클래스 목록(diep.io 위키 기준, 드론·트랩·자동 포탑·Smasher 클래스는 제외). 비어 있으면 선택 타일이 없음
   classUpLevel2: 30,
-  classUp30: { twin: ['triple', 'quadtank', 'twinflank'], sniper: [], machine: [], flank: ['quadtank', 'twinflank'] },
+  classUp30: { twin: ['triple', 'quadtank', 'twinflank'], sniper: ['assassin', 'hunter'], machine: ['destroyer', 'gunner'], flank: ['quadtank', 'twinflank'] },
   classes: {
     tank:    { n: 'Tank', dmg: 1, pen: 1, speed: 1, reload: 1, fov: 1, recoil: 1, barrels: [{ len: 1.9, w: 0.84 }] },
     // 두 포신이 번갈아 발사(연사 2배), 총알 피해 감소 -> 총 DPS 약 130%
@@ -68,6 +68,15 @@ const CFG = {
     // Quad Tank: 십자 4방향 포신 동시 발사. 위키: 피해 5.25 = 기본의 0.75배, 총알 내구도 75%
     quadtank: { n: 'Quad Tank', c: '#8ccf6a', par: 'flank', dmg: 0.75, pen: 0.75, speed: 1, reloadMul: 1, fov: 1, recoil: 1,
                barrels: [{ len: 1.9, w: 0.84 }, { len: 1.9, w: 0.84, ang: Math.PI / 2 }, { len: 1.9, w: 0.84, ang: Math.PI }, { len: 1.9, w: 0.84, ang: -Math.PI / 2 }] },
+    // Assassin: 더 긴 포신의 저격형. 위키: 총알 속도 기본의 1.5배, 재장전 30틱(포인트마다 -2, -2, -3, -2, -1, -2, -2틱), 시야 넓음. 피해·관통 1.0과 시야 0.75, 반동은 Sniper와 같게 둔 **추정**
+    assassin: { n: 'Assassin', c: '#e08a4a', par: 'sniper', dmg: 1, pen: 1, speed: 1.5, rt: [30, 28, 26, 23, 21, 20, 18, 16], fov: 0.75, recoil: 0.25, barrels: [{ len: 2.5, w: 0.7 }] },
+    // Hunter: 길고 가는 포신 + 짧고 굵은 포신이 겹쳐 동시 발사. 위키: 피해 5.25 = 기본의 0.75배(Sniper보다 -25%), 총알 속도 1.4배, 재장전 38틱. 재장전 표는 Sniper 표 x 38/23을 반올림한 **추정**
+    hunter:  { n: 'Hunter', c: '#f0c070', par: 'sniper', dmg: 0.75, pen: 1, speed: 1.4, rt: [38, 35, 31, 30, 26, 25, 23, 20], fov: 0.85, recoil: 0.25, barrels: [{ len: 2.2, w: 0.6, size: 0.75 }, { len: 1.7, w: 0.95 }] },
+    // Destroyer: 크고 느린 총알(크기 2배, 속도 0.7배), 높은 피해(위키: Annihilator가 21 = 3배이고 Destroyer와 같음), 매우 느린 재장전(Tank x4 = 60틱, 추정), 반동 큼(추정), rangeMin 0.4, rangeMax 0.33 = 한 발의 하한·상한을 다른 클래스(최대 약 110)와 비슷하게(추정)
+    destroyer: { n: 'Destroyer', c: '#d4a63c', par: 'machine', dmg: 3, pen: 1, speed: 0.7, reloadMul: 4, fov: 1, recoil: 2.5, rangeMin: 0.4, rangeMax: 0.33, barrels: [{ len: 1.9, w: 1.3, size: 2 }] },
+    // Gunner: 작은 포신 4개가 번갈아 아주 빠르게 발사하는 약한 총알(위키: 작고 약한 총알, 재장전 크게 증가). 피해 0.2, 재장전 Machine Gun 표 x1.15, 퍼짐은 **추정**(정면 지표를 Machine Gun의 약 1.1배로 맞춤)
+    gunner:  { n: 'Gunner', c: '#f0e08a', par: 'machine', dmg: 0.2, pen: 1, speed: 1, reloadMul: 1.15, rt: [8, 7, 7, 6, 6, 5, 5, 4], fov: 1, alt: true, spread: 0.14, recoil: 0.4,
+               barrels: [{ len: 1.9, w: 0.42, off: -0.75, size: 0.55 }, { len: 1.9, w: 0.42, off: 0.25, size: 0.55 }, { len: 1.9, w: 0.42, off: -0.25, size: 0.55 }, { len: 1.9, w: 0.42, off: 0.75, size: 0.55 }] },
   },
 };
 
@@ -312,7 +321,7 @@ class Player {
 }
 
 /* ============ Bot (플레이어와 같은 스펙/성장 시스템을 쓰는 AI 탱크) ============ */
-const BOT_DIST = { tank: [340, 260], twin: [320, 250], sniper: [520, 420], machine: [230, 170], flank: [320, 250] }; // [탱크 상대, 도형 파밍] 선호 거리
+const BOT_DIST = { tank: [340, 260], twin: [320, 250], sniper: [520, 420], machine: [230, 170], flank: [320, 250], assassin: [620, 480], destroyer: [380, 280], gunner: [260, 190] }; /* 값이 없는 30레벨 클래스는 이전 클래스(par)의 값을 따름 */ // [탱크 상대, 도형 파밍] 선호 거리
 const BOT_BUILD = { reload: 3, bDmg: 3, pen: 2.5, bSpeed: 1.5, maxHp: 2, move: 1.5, body: 1, regen: 1 }; // 능력치 투자 기본 가중치(성격 유형과 클래스로 0.6~1.6배 편향)
 const BOT_CLASS_W = { twin: 3, sniper: 2, machine: 3, flank: 2 }; /* 30레벨 클래스는 목록에서 균등하게 고름 */ // 클래스 선택 확률 3:2:3:2 (모든 유형 동일)
 const botBuildWeights = (ty, cls) => { // 성격 수치 -> 능력치 투자 가중치. b>0이면 +0.6, b<0이면 -0.4 한도로 배수를 만들고 클래스 배수를 곱해 0.6~1.6으로 제한

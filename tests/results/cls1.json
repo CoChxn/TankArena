@@ -1,0 +1,28 @@
+{
+ "game": "3efafae68961",
+ "sets": [],
+ "seed": "1",
+ "names": [
+  "classcheck",
+  "dmgrange",
+  "buildcheck",
+  "sanity"
+ ],
+ "results": {
+  "classcheck.bad": 0,
+  "dmgrange.min": 5.775,
+  "dmgrange.avg": 30.5826,
+  "dmgrange.max": 109.8998,
+  "buildcheck.안전농부.maxHp": 5.478,
+  "buildcheck.겁없는농부.maxHp": 3.332,
+  "buildcheck.저격형.maxHp": 5.6965,
+  "buildcheck.돌격형.maxHp": 3.316,
+  "buildcheck.복수자.maxHp": 4.438,
+  "buildcheck.추격자.maxHp": 3.948,
+  "buildcheck.균형형.maxHp": 4.5315,
+  "sanity.issues": 0,
+  "sanity.maxTankV": 277.8048,
+  "sanity.maxShapeV": 206.6208,
+  "sanity.updMs": 0.8202
+ }
+}
