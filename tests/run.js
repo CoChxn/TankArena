@@ -26,6 +26,7 @@ const SC = {
   dmgrange: ['총알 한 발이 탱크 한 대에 줄 수 있는 총 피해의 최소/평균/최대(정면 직격, 정지한 대상): 클래스 x 능력치 x 대상 방어', () => 8],
   shapeflow: ['도형 흐름 측정: 도형이 죽는 속도와 다시 생기는 속도(군집·일반·둥지), 도형 수 추이 (플레이어 정지, 봇만)', o => 5 + o.min * 3],
   clustercheck: ['군집 일생 확인(grow 모드): 총 생성이 목표를 넘지 않는지, 목표 달성 뒤 생성이 없는지, 성장 시간, 종료 사유, 군집 수 유지, 도형 수', o => 5 + o.min * 3],
+  classcheck: ['클래스 전직 규칙(15·30레벨 선택지, 잘못된 선택 거부), 봇 선택 분포, 클래스별 초당 발사 수·피해 지표', () => 8],
   bodycheck: ['몸통 충돌 물리 측정: 플레이어가 도형·탱크를 향해 계속 전진할 때 전진 속도, 대상이 밀린 거리, 멈춤 여부', () => 6],
   botspawn: ['봇 스폰 위치 분포(맵 전체 무작위인지)', () => 3],
   autofire: ['사망 시 오토파이어 해제, E 키 동작', () => 1],
@@ -78,12 +79,12 @@ const gameSha = crypto.createHash('sha256').update(src).digest('hex').slice(0, 1
 const marker = "game = new Game(document.getElementById('c'));";
 if (!src.includes(marker)) { console.error('game.js에서 "' + marker + '" 줄을 찾지 못했습니다.'); process.exit(1); }
 const overrides = opt.sets.map(s => { const m = /^([A-Za-z_][\w.]*)=(.+)$/.exec(s || ''); if (!m) { console.error('--set 형식: 경로=값 (예: bots.base=12)'); process.exit(1); } let v; try { v = JSON.parse(m[2]); } catch (e) { v = m[2]; } return 'CFG.' + m[1] + ' = ' + JSON.stringify(v) + ';'; }).join('\n');
-src = src.replace(marker, overrides + '\n' + marker) + '\n;globalThis.__x = { g: game, C: CFG, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, ANIMALS, TICK };';
-let g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player;
+src = src.replace(marker, overrides + '\n' + marker) + '\n;globalThis.__x = { g: game, C: CFG, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, classChoices, tierOf, ANIMALS, TICK };';
+let g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, classChoices, tierOf;
 const srcTemplate = src; // 로드 전의 설정 적용본(시나리오마다 새로 평가하기 위해 보관)
 function boot() { // 게임을 새로 만들고 참조를 갱신 (시나리오 사이에 월드가 섞이지 않게)
   global.__L = {}; seedBoot(); (0, eval)(srcTemplate);
-  ({ g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player } = global.__x);
+  ({ g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, classChoices, tierOf } = global.__x);
   if (opt.nosep) { g.separateShapes = () => {}; g.shapeFree = () => true; } // 성능 비교용: 도형 겹침 방지(분리 + 생성 시 검사) 끄기
 }
 function seedBoot() { if (opt.seed !== undefined) seedRand(num(opt.seed, 1)); }
@@ -376,6 +377,35 @@ S.clustercheck = o => { // 군집(grow 모드)의 일생을 추적: 만들어진
   const mc = counts.length ? counts : [0]; say('군집 수(10초마다): 평균 ' + f1(avg(mc)) + ' | 최소 ' + Math.min(...mc) + ' | 최대 ' + Math.max(...mc) + ' (기대 ' + Math.max(1, Math.floor(Math.min(K.maxCount, MAP.size * MAP.size / K.areaPerCluster) + 0.35)) + ')');
   say('전체 도형 수(10초마다): 평균 ' + f1(avg(totals)) + ' | 최소 ' + Math.min(...totals) + ' | 최대 ' + Math.max(...totals));
   rec('clustercheck.over', over.length); rec('clustercheck.afterEnd', afterEnd.length); rec('clustercheck.completed', done.length); rec('clustercheck.other', other.length); rec('clustercheck.growAvg', avg(grown.map(d => d.dur))); rec('clustercheck.total', avg(totals));
+};
+
+S.classcheck = () => { // 전직 규칙 확인과 클래스별 초당 발사 수·틱당 피해 지표(정면 포신 기준) 비교
+  const f1 = x => x.toFixed(1), f2 = x => x.toFixed(2), cls = Object.keys(C.classes); let bad = 0; const chk = (ok, msg) => { if (!ok) { bad++; say('  ! ' + msg); } };
+  say('=== [classcheck] 클래스 전직 규칙과 지표 ===');
+  say('[1] 선택 가능한 클래스 목록(classChoices) — 레벨별: Tank / 15레벨 클래스');
+  const ch = (cl, lv) => classChoices(cl, lv).join(',') || '-';
+  chk(ch('tank', 14) === '-', 'Tank 14레벨은 선택지가 없어야 함'); chk(ch('tank', 15) === C.classOrder.join(','), 'Tank 15레벨은 15레벨 클래스 4개');
+  for (const k of C.classOrder) { say('    ' + k.padEnd(8) + '29레벨 [' + ch(k, 29) + '] | 30레벨 [' + ch(k, 30) + ']'); chk(ch(k, 29) === '-', k + ' 29레벨은 선택지가 없어야 함'); chk(ch(k, 30) === (C.classUp30[k].join(',') || '-'), k + ' 30레벨 선택지가 설정과 같아야 함'); }
+  for (const k of cls) if (k !== 'tank' && !C.classOrder.includes(k)) chk(ch(k, 45) === '-', k + '(30레벨 클래스)는 더 고를 선택지가 없어야 함');
+  say('[2] 게임에서 실제 선택(chooseClass): 허용/거부');
+  const P = fresh({ level: 30 }); P.setLevel(30); g.state = 'play';
+  chk(P.cls === 'tank', '시작은 Tank'); g.chooseClass('triple'); chk(P.cls === 'tank', 'Tank에서 30레벨 클래스(triple)로 바로 갈 수 없음');
+  g.chooseClass('twin'); chk(P.cls === 'twin', 'Tank 30레벨에서 twin 선택 가능'); g.chooseClass('sniper'); chk(P.cls === 'twin', 'twin에서 다른 15레벨 클래스(sniper)로 바꿀 수 없음');
+  g.chooseClass('quadtank'); chk(P.cls === 'quadtank', 'twin 30레벨에서 quadtank 선택 가능'); g.chooseClass('triple'); chk(P.cls === 'quadtank', '이미 고른 뒤 다시 고를 수 없음');
+  const P2 = fresh({ level: 29 }); P2.setLevel(29); g.chooseClass('twin'); g.chooseClass('triple'); chk(P2.cls === 'twin', '29레벨 twin은 triple을 고를 수 없음');
+  say('    위반 ' + bad + '건');
+  say('[3] 봇 선택 분포 (Tank 상태로 레벨 45에서 시작하는 봇 1,000마리)');
+  const cnt = {}; for (let i = 0; i < 1000; i++) { const b = new Bot(MAP.lo + 500, MAP.lo + 500, 1, 'T'); for (let L = 2; L <= 45; L++) b.addXp(C.scoreAt[L] - b.score); cnt[b.cls] = (cnt[b.cls] || 0) + 1; chk(tierOf(b.cls) === 3 || (C.classUp30[b.cls] || []).length === 0, '봇이 30레벨 선택지가 있는 15레벨 클래스에서 멈춤: ' + b.cls); }
+  say('    ' + Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join(' | '));
+  say('[4] 클래스별 지표 (능력치 0포인트 Lv1, 10초 연사): 초당 발사 수 / 틱당 피해 / 정면 포신 비율 / 정면 지표 = 초당 정면 발사 수 x 틱당 피해 (Tank = 1.00 기준)');
+  const rows = []; let base = 0;
+  for (const k of cls) {
+    const Q = fresh(); g.shapes = []; Q.setLevel(1); Q.setClass(k); Q.angle = 0; Q.aim = function () {}; g.input.down = true; let shots = 0; const os = g.shoot; g.shoot = function (...a) { if (a[0] === Q) shots++; return os.apply(this, a); };
+    for (let i = 0; i < 600; i++) { Q.hp = Q.maxHp = 1e9; g.update(1 / 60); } g.shoot = os; g.input.down = false;
+    const fw = Q.barrels.filter(b => Math.abs(Math.sin((b.ang || 0) / 2)) < 0.4).length / Q.barrels.length, sps = shots / 10, v = sps * Q.spec.dmg * fw; if (k === 'tank') base = v; rows.push([k, sps, Q.spec.dmg, fw, v, Q.barrels.length]);
+  }
+  for (const [k, sps, d, fw, v, nb] of rows) say('    ' + k.padEnd(10) + '포신 ' + nb + ' | ' + f1(sps).padStart(5) + '발/초 | 틱당 피해 ' + f2(d).padStart(5) + ' | 정면 ' + f2(fw) + ' | 지표 ' + f2(v / base) + '배');
+  say(bad ? '확인 결과: 위반 ' + bad + '건' : '확인 결과: 위반 없음'); rec('classcheck.bad', bad);
 };
 
 S.bodycheck = () => { // 몸통 충돌 물리 측정: 플레이어(레벨 L)가 정지한 대상 쪽으로 3초 동안 계속 전진

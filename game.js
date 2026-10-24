@@ -42,6 +42,9 @@ const CFG = {
   bots: { base: 10, perLevel: 0.2, max: 20, spawnEvery: 6, maxSpawnLevel: 14, spawnGap: 250, shapeXp: 0.25, spawnIdle: 3, catchUp: 5, catchUpRamp: 0.5 }, // catchUp/catchUpRamp: 목표 레벨(소환 규칙으로 정해진 원래 시작 레벨)에 도달할 때까지 도형·크래셔 점수 배율에 곱하는 가속 = catchUp + catchUpRamp x 소환 후 경과 초 // spawnIdle: 소환 직후 0~spawnIdle초 동안 가만히 대기(무적) // shapeXp: 봇이 도형·크래셔로 얻는 점수 배율(플레이어와 같거나 느린 성장 속도) // spawnGap: 재시작한 플레이어와 봇 사이 최소 거리 // 동시 봇 수 = min(max, base + 플레이어레벨*perLevel)
   classUpLevel: 15,
   classOrder: ['twin', 'sniper', 'machine', 'flank'],
+  // 30레벨 전직: 15레벨에서 고른 클래스 -> 고를 수 있는 클래스 목록(diep.io 위키 기준, 드론·트랩·자동 포탑·Smasher 클래스는 제외). 비어 있으면 선택 타일이 없음
+  classUpLevel2: 30,
+  classUp30: { twin: ['triple', 'quadtank', 'twinflank'], sniper: [], machine: [], flank: ['quadtank', 'twinflank'] },
   classes: {
     tank:    { n: 'Tank', dmg: 1, pen: 1, speed: 1, reload: 1, fov: 1, recoil: 1, barrels: [{ len: 1.9, w: 0.84 }] },
     // 두 포신이 번갈아 발사(연사 2배), 총알 피해 감소 -> 총 DPS 약 130%
@@ -55,6 +58,16 @@ const CFG = {
     // 앞 포신 + 짧은 뒤 포신 동시 발사, 피해 100%, 반동 상쇄
     flank:   { n: 'Flank Guard', c: '#7ad98a', dmg: 1, pen: 1, speed: 1, reload: 1, fov: 1, recoil: 1,
                barrels: [{ len: 1.9, w: 0.84 }, { len: 1.35, w: 0.84, ang: Math.PI }] },
+    // ---- 30레벨 클래스 (par = 이전 클래스, 봇의 거리·능력치 투자 값이 없을 때 이 값을 따름). reloadMul = 재장전 배율. 수치 출처: 위키(피해·관통 배율 일부) + 추정(재장전·피해 등 DPS를 기존 클래스에 맞춤) ----
+    // Triple Shot: 포신 3개(앞 + 좌우로 벌어짐) 동시 발사. 위키: 피해 4.9 = 기본의 0.7배, 관통은 Twin의 약 1.11배(0.9 -> 1.0). 재장전은 추정(정면 지표를 Twin과 비슷한 약 1.2로 맞춤)
+    triple:  { n: 'Triple Shot', c: '#5fb5e8', par: 'twin', dmg: 0.7, pen: 1, speed: 1, reloadMul: 1.8, fov: 1, recoil: 0.3,
+               barrels: [{ len: 1.9, w: 0.84, ang: -0.5, size: 0.85 }, { len: 1.9, w: 0.84, size: 0.85 }, { len: 1.9, w: 0.84, ang: 0.5, size: 0.85 }] },
+    // Twin Flank: 앞 2 + 뒤 2, 번갈아 발사(앞뒤 반동이 상쇄). 위키: Twin보다 피해가 더 낮음(0.55는 추정, 앞쪽 지표가 기본 탱크와 비슷하도록)
+    twinflank: { n: 'Twin Flank', c: '#6cd0b0', par: 'twin', dmg: 0.55, pen: 0.9, speed: 1, reloadMul: 1, fov: 1, alt: true, recoil: 0.25,
+               barrels: [{ len: 1.9, w: 0.84, off: -0.52, size: 0.85 }, { len: 1.9, w: 0.84, off: -0.52, ang: Math.PI, size: 0.85 }, { len: 1.9, w: 0.84, off: 0.52, size: 0.85 }, { len: 1.9, w: 0.84, off: 0.52, ang: Math.PI, size: 0.85 }] },
+    // Quad Tank: 십자 4방향 포신 동시 발사. 위키: 피해 5.25 = 기본의 0.75배, 총알 내구도 75%
+    quadtank: { n: 'Quad Tank', c: '#8ccf6a', par: 'flank', dmg: 0.75, pen: 0.75, speed: 1, reloadMul: 1, fov: 1, recoil: 1,
+               barrels: [{ len: 1.9, w: 0.84 }, { len: 1.9, w: 0.84, ang: Math.PI / 2 }, { len: 1.9, w: 0.84, ang: Math.PI }, { len: 1.9, w: 0.84, ang: -Math.PI / 2 }] },
   },
 };
 
@@ -99,6 +112,8 @@ CFG.bodyPhys = { mode: 'tuned', shapeMass: { square: 0.35, triangle: 0.35, penta
 // 총알 한 발이 한 대상(탱크)에 주는 총 피해의 범위: 하한 Dmin = Dt x tMin x (클래스 rangeMin), 상한 Dmax = Dt x (tMaxA + tMaxB x P) x (클래스 rangeMax). Dt = 틱당 피해(Bullet Damage 포인트 x 클래스 피해 배율), P = 총알 체력 / bulletHp(Penetration 포인트 x 클래스 관통 배율). 실제 총 피해 = 접촉 틱 교환으로 계산한 누적 피해를 Dmin~Dmax로 제한(하한은 처음 닿는 프레임에 바로 줌, 상한에 닿으면 그 대상에게는 더 주지 않고 총알은 계속 진행). target 'tank' = 탱크가 맞는 경우만(도형·크래셔는 이전과 같음), 'all' = 도형·크래셔 포함. mode 'legacy'는 범위 제한 없음(이전 동작)
 CFG.bulletRange = { mode: 'range', target: 'tank', tMin: 1.5, tMaxA: 0.8, tMaxB: 0.25 };
 CFG.scoreboardSmooth = 6; // 리더보드 게이지가 목표 길이로 따라가는 속도(1/초, 클수록 빠름, 0이면 즉시). 6이면 약 0.5초에 95% 도달
+const tierOf = k => k === 'tank' ? 1 : CFG.classOrder.includes(k) ? 2 : 3; // 클래스 단계: 1 = Tank, 2 = 15레벨 클래스, 3 = 30레벨 클래스
+const classChoices = (cls, level) => cls === 'tank' ? (level >= CFG.classUpLevel ? CFG.classOrder : []) : tierOf(cls) === 2 && level >= CFG.classUpLevel2 ? (CFG.classUp30[cls] || []) : []; // 지금 고를 수 있는 클래스 목록(플레이어와 봇 공통)
 const TICK = 0.04; // diep.io 서버 틱(1틱 = 0.04초)
 const TANK_RT = [15, 14, 13, 12, 11, 10, 9, 8]; // 기본 Tank 재장전(틱): 포인트당 -1틱. Sniper/Machine Gun은 클래스의 rt 표 사용
 const lvPow = L => Math.pow(1.01, L - 1); // 레벨당 탱크·총알 크기 +1% (속도는 반대로 감소)
@@ -243,7 +258,7 @@ class Player {
     const s = {}, u = this.up; for (const st of CFG.stats) s[st.k] = st.base + st.per * u[st.k];
     const L = this.level, lp = lvPow(L), d = this.def; // diep.io: 레벨당 크기·총알 크기 +1%, 기본 속도는 그만큼 감소
     this.s = s; this.r = CFG.playerR * lp; this.speedMul = 1 / lp; this.fov = d.fov || 1;
-    const rt = d.rt || TANK_RT, ru = u.reload; this.reloadT = (ru < rt.length ? rt[ru] : Math.max(1, rt[rt.length - 1] - (ru - rt.length + 1) * 0.5)) * TICK; // 클래스별 재장전(틱) 표 (표를 넘으면 포인트당 0.5틱씩 추가 감소, 최소 1틱)
+    const rt = d.rt || TANK_RT, ru = u.reload; this.reloadT = (ru < rt.length ? rt[ru] : Math.max(1, rt[rt.length - 1] - (ru - rt.length + 1) * 0.5)) * TICK * (d.reloadMul || 1); // 클래스별 재장전(틱) 표 (표를 넘으면 포인트당 0.5틱씩 추가 감소, 최소 1틱)
     this.spec = { bSpeed: s.bSpeed * d.speed * CFG.bulletSpeedMul, dmg: s.bDmg * d.dmg, pen: s.pen * CFG.bulletHp * d.pen, size: 8 * lp * CFG.bulletSizeMul, life: 1.9 * CFG.bulletLife, spread: d.spread || 0 }; // pen = 총알 체력(x4), 크기는 레벨에만 비례
     const ratio = this.maxHp ? this.hp / this.maxHp : 1; this.maxHp = s.maxHp + (L - 1) * 2; this.hp = ratio * this.maxHp;
   }
@@ -299,11 +314,11 @@ class Player {
 /* ============ Bot (플레이어와 같은 스펙/성장 시스템을 쓰는 AI 탱크) ============ */
 const BOT_DIST = { tank: [340, 260], twin: [320, 250], sniper: [520, 420], machine: [230, 170], flank: [320, 250] }; // [탱크 상대, 도형 파밍] 선호 거리
 const BOT_BUILD = { reload: 3, bDmg: 3, pen: 2.5, bSpeed: 1.5, maxHp: 2, move: 1.5, body: 1, regen: 1 }; // 능력치 투자 기본 가중치(성격 유형과 클래스로 0.6~1.6배 편향)
-const BOT_CLASS_W = { twin: 3, sniper: 2, machine: 3, flank: 2 }; // 클래스 선택 확률 3:2:3:2 (모든 유형 동일)
+const BOT_CLASS_W = { twin: 3, sniper: 2, machine: 3, flank: 2 }; /* 30레벨 클래스는 목록에서 균등하게 고름 */ // 클래스 선택 확률 3:2:3:2 (모든 유형 동일)
 const botBuildWeights = (ty, cls) => { // 성격 수치 -> 능력치 투자 가중치. b>0이면 +0.6, b<0이면 -0.4 한도로 배수를 만들고 클래스 배수를 곱해 0.6~1.6으로 제한
   const Z = CFG.botBuild, B = 2 * ty.b - 1, G = 2 * ty.g - 1, P = 2 * ty.p - 1, w = {}; // 대담함, 목표지향, 끈기를 -1~1로
   const bias = { reload: (B + G) / 2, bDmg: (B - G) / 2, pen: -G, bSpeed: P, move: (P - B) / 2, maxHp: -B, regen: -B / 2, body: B };
-  for (const k in BOT_BUILD) { const b = clamp(bias[k], -1, 1), m = (1 + (b > 0 ? Z.up : Z.dn) * b) * ((Z.cls[cls] || {})[k] || 1); w[k] = BOT_BUILD[k] * clamp(m, Z.lo, Z.hi); }
+  for (const k in BOT_BUILD) { const b = clamp(bias[k], -1, 1), m = (1 + (b > 0 ? Z.up : Z.dn) * b) * ((Z.cls[cls] || Z.cls[(CFG.classes[cls] || {}).par] || {})[k] || 1); w[k] = BOT_BUILD[k] * clamp(m, Z.lo, Z.hi); }
   return w;
 };
 const pickBotType = () => { let t = 0; for (const x of CFG.botTypes) t += x.w; let r = Math.random() * t; for (const x of CFG.botTypes) { r -= x.w; if (r <= 0) return x; } return CFG.botTypes[0]; }; // 가중치 추첨(현재 균등)
@@ -339,9 +354,12 @@ class Bot extends Player {
     this.recalc();
   }
   pickClass() {
-    if (this.cls !== 'tank' || this.level < CFG.classUpLevel) return;
-    let r = Math.random() * 10, k = 'twin'; for (const c of CFG.classOrder) { k = c; r -= BOT_CLASS_W[c]; if (r <= 0) break; }
-    this.setClass(k); this.wt = botBuildWeights(this.pt, k); // 이후 포인트부터 클래스에 맞는 능력치 가중치를 겹침
+    for (let step = 0; step < 2; step++) { /* 15레벨과 30레벨을 한꺼번에 넘은 경우도 두 번 고름 */
+      const ch = classChoices(this.cls, this.level); if (!ch.length) return;
+      let tot = 0; for (const c of ch) tot += this.cls === 'tank' ? BOT_CLASS_W[c] : 1;
+      let r = Math.random() * tot, k = ch[0]; for (const c of ch) { k = c; r -= this.cls === 'tank' ? BOT_CLASS_W[c] : 1; if (r <= 0) break; }
+      this.setClass(k); this.wt = botBuildWeights(this.pt, k); // 이후 포인트부터 클래스에 맞는 능력치 가중치를 겹침
+    }
   }
   addXp(v) { super.addXp(v); this.spendPoints(); this.pickClass(); } // 플레이어와 같은 레벨업 -> 포인트 투자 -> 15레벨 클래스 선택
   hurt(d, by) { if (this.invT > 0) return; /* 스폰 무적: 피해를 받지 않음 */ this.hp -= d; this.sinceHit = 0; this.flash = 0.12; if (by) this.lastHit = by; if (by && by !== this && by.up) { this.grudge = by; this.grudgeLeft = this.grudgeT; } }
@@ -433,7 +451,7 @@ class Bot extends Player {
     if (T) {
       const dx = T.x - this.x, dy = T.y - this.y, d = Math.hypot(dx, dy) || 1, nx = dx / d, ny = dy / d, sx = -ny * this.side, sy = nx * this.side;
       this.lostT = this.kind === 'tank' && d > sight ? this.lostT + dt : 0; // 끈기: 시야 밖에 머문 시간
-      const flee = this.mode === 'flee' && this.kind === 'tank', pref = BOT_DIST[this.cls][this.kind === 'tank' ? 0 : 1];
+      const flee = this.mode === 'flee' && this.kind === 'tank', pref = (BOT_DIST[this.cls] || BOT_DIST[this.def.par] || BOT_DIST.tank)[this.kind === 'tank' ? 0 : 1];
       if (!flee) this.fa = null; if (flee) { const fd = this.fleeDir(dt, nx, ny, d, sight); ux = fd[0]; uy = fd[1]; } else if (this.kind === 'crasher') { if (d < 420) { ux = -nx; uy = -ny; } else { ux = sx; uy = sy; spd = 0.5; } } else if (d > pref + 50) { ux = nx; uy = ny; } else if (d < pref - 50) { ux = -nx; uy = -ny; spd = 0.8; } else { ux = sx; uy = sy; spd = 0.5; }
       const A = CFG.botFx.aim; let lt = d / sp.bSpeed;
       if (A.mode !== 'legacy') { // 사람다운 조준: 상대 가속, 거리에 따라 커지는 오차, 계속 변하는 오차 각도, 예측 시간 오차, 새 탱크를 노릴 때 지연
@@ -592,10 +610,11 @@ class UI {
     }
     // 클래스 업그레이드 타일 (diep.io처럼 좌상단, 왼쪽에서 슬라이드 인, 클릭으로 선택)
     this.tiles.length = 0;
-    if (p.alive && p.cls === 'tank' && p.level >= CFG.classUpLevel) {
+    const choices = p.alive ? classChoices(p.cls, p.level) : [];
+    if (choices.length) {
       if (!this.showAt) this.showAt = performance.now();
       const k = clamp((performance.now() - this.showAt) / 350, 0, 1), ease = 1 - (1 - k) * (1 - k), ts = 92, tg = 10, im = g.input;
-      CFG.classOrder.forEach((key, i) => {
+      choices.forEach((key, i) => {
         const cd = CFG.classes[key], tx = 16 - (1 - ease) * 240 + (i % 2) * (ts + tg), ty = 16 + ((i / 2) | 0) * (ts + tg);
         const hov = im.mx >= tx && im.mx <= tx + ts && im.my >= ty && im.my <= ty + ts;
         this.tiles.push({ x: tx, y: ty, w: ts, h: ts, k: key });
@@ -821,7 +840,7 @@ class Game {
   }
   chooseClass(k) {
     const p = this.player;
-    if (this.state === 'play' && p.alive && p.cls === 'tank' && p.level >= CFG.classUpLevel && CFG.classes[k]) { p.setClass(k); this.fx.burst(p.x, p.y, CFG.classes[k].c, 16, 260); }
+    if (this.state === 'play' && p.alive && CFG.classes[k] && classChoices(p.cls, p.level).includes(k)) { p.setClass(k); this.fx.burst(p.x, p.y, CFG.classes[k].c, 16, 260); }
   }
   damage(e, d, by) { if (e.hurt) e.hurt(d, by); else { e.hp -= d; e.flash = 0.12; e.lastHit = by; e.calm = 0; } }
   onKill(e) { // 마지막으로 피해를 준 탱크가 즉시 경험치 획득 (도형은 고정값, 탱크는 점수에 비례)

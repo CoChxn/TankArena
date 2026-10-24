@@ -109,7 +109,7 @@ add(...T(['입력', '동작'], [
   ['마우스 클릭 / Space', '발사 (누르고 있는 동안 연사)'],
   ['E', '자동 발사 토글 — 플레이 중에만 동작. 죽으면 자동으로 꺼짐'],
   ['1~8 / 능력치 줄 옆 + 버튼', '해당 능력치에 포인트 1 투자 (포인트가 있고 7 미만일 때)'],
-  ['클래스 타일 클릭', '15레벨에 좌상단에 나타나는 4개 타일 중 하나 선택'],
+  ['클래스 타일 클릭', '15레벨과 30레벨에 좌상단에 나타나는 타일 중 하나 선택'],
   ['\\ (백슬래시)', '개발자 모드 켜기 + 즉시 1레벨 상승 (새로 고침 전까지 유지)'],
   ['F2', '개발자 모드에서 정보 패널 켜고 끄기 (봇 킬로그도 함께)'],
   ['마우스 휠 (개발자 모드)', '시야 확대/축소 (x0.1 ~ x3)'],
@@ -213,11 +213,11 @@ add(...T(['항목', '값', '설명'], [
   ['스폰 무적', `${CFG.spawnInvuln}초`, '이동하거나 발사하면 즉시 해제. 무적 중에는 피해를 받지 않음(상대에게 주는 몸통 피해는 그대로). 화면에서 반투명하게 깜빡임'],
   ['오토 파이어', 'E 키', '발사 입력을 계속 누른 것으로 처리. 죽으면 꺼짐'],
 ], [1800, 3500, W - 5300]));
-add(H2('4.5 클래스 (15레벨에서 선택)'));
-add(P('기본 클래스는 Tank이고 15레벨(`classUpLevel`)에 한 번 4개 중 하나를 고를 수 있습니다. 배율은 기본 Tank 기준입니다. 레벨 30·45 업그레이드 트리는 아직 없습니다(11장).'));
+add(H2('4.5 클래스 (15레벨과 30레벨에서 선택)'));
+add(P('기본 클래스는 Tank이고 15레벨(`classUpLevel`)에 한 번 4개 중 하나를 고르고, 30레벨(`classUpLevel2`)에 한 번 더 고를 수 있습니다(선택은 좌상단 타일 클릭, 키보드 단축키 없음). 30레벨 선택지는 15레벨에서 고른 클래스에 따라 달라지며 `CFG.classUp30`에 있습니다. 배율은 기본 Tank 기준입니다. 레벨 45 업그레이드 트리와 드론·트랩·자동 포탑·Smasher 클래스는 아직 없습니다(11장).'));
 {
   const rtOf = k => CL[k].rt || TANK_RT;
-  const rows = ['tank', 'twin', 'sniper', 'machine', 'flank'].map(k => { const c = CL[k]; return [c.n, 'x' + c.dmg, 'x' + c.pen, 'x' + c.speed, `${rtOf(k)[0]}→${rtOf(k)[7]}틱`, 'x' + c.fov, 'x' + c.recoil]; });
+  const rows = Object.keys(CL).map(k => { const c = CL[k]; return [c.n, 'x' + c.dmg, 'x' + c.pen, 'x' + c.speed, `${rtOf(k)[0]}→${rtOf(k)[7]}틱${c.reloadMul ? ' x' + c.reloadMul : ''}`, 'x' + c.fov, 'x' + c.recoil]; });
   add(...T(['클래스', '피해', '관통(총알 체력)', '총알 속도', '재장전(0→7포인트)', '시야 배율', '반동'], rows, [1900, 1000, 1500, 1300, 2000, 1000, 938], { size: 17, align: Array(7).fill(CT) }));
 }
 add(...T(['클래스', '포신과 특징'], [
@@ -226,7 +226,12 @@ add(...T(['클래스', '포신과 특징'], [
   ['Sniper', '긴 포신(2.2). 총알 속도 1.4배, 재장전이 느리고(23→12틱), 시야가 넓음(0.85). 반동 0.25배.'],
   ['Machine Gun', '사다리꼴 포신(길이 1.9, 밑동 0.84에서 끝 1.47로 넓어짐). 재장전이 약 2배 빠르고(8→4틱), 피해 0.7배, 총알이 ±0.16라디안(약 ±9.2도) 퍼짐, 총알 크기 0.9배. 반동 0.4배.'],
   ['Flank Guard', '앞 포신(1.9) + 뒤 포신(1.35, 180도 회전)이 **동시에** 발사. 피해 100%. 앞뒤 반동이 상쇄되어 정지한 채로 쏠 수 있음.'],
+  ['Triple Shot (30레벨)', '포신 3개(앞 + 좌우 ±0.5라디안)가 동시에 발사. 총알 크기 0.85배. 위키 기준: 피해 0.7배, 관통은 Twin보다 약 11% 높음(1.0). 재장전 x1.8은 **추정**(앞쪽 지표를 Twin과 비슷하게 맞춤).'],
+  ['Twin Flank (30레벨)', '앞 2 + 뒤 2 포신이 번갈아 발사(앞뒤 반동 상쇄). 위키: Twin보다 피해가 더 낮음, 피해 0.55는 **추정**(앞쪽 지표가 Tank와 비슷하도록).'],
+  ['Quad Tank (30레벨)', '십자 4방향 포신이 동시에 발사. 위키: 피해 5.25(= 기본의 0.75배), 총알 내구도 75%.'],
 ], [1900, W - 1900]));
+add(H3('30레벨 선택지 (classUp30)'));
+add(...T(['15레벨 클래스', '30레벨에서 고를 수 있는 클래스'], Object.keys(CFG.classUp30).map(k => [CL[k].n, CFG.classUp30[k].map(x => CL[x].n).join(', ') || '(아직 없음)']), [2400, W - 2400]));
 add(H3('재장전 틱 표 (포인트 0~7)'));
 add(...T(['클래스', '0', '1', '2', '3', '4', '5', '6', '7'], [['Tank, Twin, Flank Guard', ...TANK_RT.map(String)], ['Sniper', ...CL.sniper.rt.map(String)], ['Machine Gun', ...CL.machine.rt.map(String)]], [2400, ...Array(8).fill(Math.floor((W - 2400) / 8))], { size: 17, align: Array(9).fill(CT) }));
 add(P(`1틱 = ${TICK}초이므로 Tank 0포인트는 0.60초, 7포인트는 0.32초에 한 발입니다.`));
@@ -499,7 +504,7 @@ add(H2('7.8 능력치 투자와 클래스 선택 (3단계)'));
   add(...BUL([
     '레벨이 오르면 포인트를 **즉시 전부** 씁니다. 포인트 한 점마다 7점이 안 찬 능력치 중에서 가중치로 **한 점씩 가중 추첨**하므로, 같은 유형이어도 빌드는 조금씩 다릅니다. 이전의 봇별 무작위 배율(0.5~1.5배)은 없앴습니다.',
     `**가중치 = 기본 가중치 × 성격 편향 배수 × 클래스 배수**이고, 최종 배수는 ${Z.lo}~${Z.hi}배로 제한합니다. 기본 가중치는 ${ord.map(k => `${nm[k]} ${BOT_BUILD[k]}`).join(', ')}입니다.`,
-    `**클래스 선택:** 15레벨에 가중 추첨합니다(Twin ${BOT_CLASS_W.twin * 10}%, Sniper ${BOT_CLASS_W.sniper * 10}%, Machine Gun ${BOT_CLASS_W.machine * 10}%, Flank Guard ${BOT_CLASS_W.flank * 10}%). **모든 유형이 같고 유형별 선호는 없습니다**(사용자 결정).`,
+    `**클래스 선택:** 30레벨에는 선택지 안에서 균등하게 뽑고(15레벨과 30레벨을 한꺼번에 넘으면 두 번 뽑음), 15레벨에는 가중 추첨합니다(Twin ${BOT_CLASS_W.twin * 10}%, Sniper ${BOT_CLASS_W.sniper * 10}%, Machine Gun ${BOT_CLASS_W.machine * 10}%, Flank Guard ${BOT_CLASS_W.flank * 10}%). **모든 유형이 같고 유형별 선호는 없습니다**(사용자 결정).`,
     '**클래스 연동:** 클래스를 고른 뒤 얻는 포인트(15레벨 이후 19점)부터 클래스 배수가 겹칩니다. 15레벨의 포인트까지(14점)는 유형 가중치만 씁니다.',
     '포인트 총량, 점수 배율, 능력치 7점 한도는 모든 유형이 같고, 유형은 투자 방향만 바꿉니다.',
   ]));
@@ -589,7 +594,7 @@ add(...T(['요소', '위치', '내용'], [
   ['상단 중앙', '위', '체력/피해/재장전/속도 요약, 조작 안내, 처치 메시지("You\'ve killed 이름", 4초, 최대 4줄)'],
   ['하단 중앙', '아래', '이름, 점수 막대(내 점수 ÷ 1위 점수), 레벨 경험치 막대(`레벨 N 클래스  현재/필요`)'],
   ['능력치 패널', '좌하단', '8개 줄에 포인트 막대와 + 버튼. 포인트가 있을 때 슬라이드로 나타나고, 없으면 커서를 왼쪽 아래에 두면 보임'],
-  ['클래스 타일', '좌상단', '15레벨 Tank에게 4개 타일 표시, 클릭으로 선택'],
+  ['클래스 타일', '좌상단', '15레벨 Tank에게 4개, 30레벨 15레벨 클래스에게 `classUp30`의 선택지 타일 표시, 클릭으로 선택'],
   ['Scoreboard', '우상단', '상위 10명. 짙은 회색(#373737) 알약 트랙 위에 연초록(#90eda9) 알약 게이지(1위 대비 비율, 목표 길이로 부드럽게 따라감), 클래스 아이콘(모두 파랑)이 게이지 끝에 붙어 다니며 1위는 왼쪽, 나머지는 오른쪽을 봄, 글자(이름 - 점수)는 막대 가운데에 아이콘 위로 표시, 마우스를 올리면 게이지가 약간 밝아짐'],
   ['미니맵', '우하단', '150px. 봇은 빨간 점, 나는 조준 방향 검은 삼각형, 현재 시야 사각형. 둥지 원은 개발자 모드에서만'],
 ], [1700, 1300, W - 3000]));
@@ -620,7 +625,7 @@ add(...T(['이름', '값', '의미'], [
   ['world', n0(CFG.world), '좌표 공간 한 변'], ['grid', CFG.grid, '배경 격자 간격(px)'], ['maxLevel', CFG.maxLevel, '최대 레벨'], ['maxPts', CFG.maxPts, '능력치당 최대 포인트'], ['clashTol', CFG.clashTol, '총알끼리 충돌 시 동률 판정 오차(bulletClashMode = instant에서만 사용)'], ['bulletClashMode', CFG.bulletClashMode, '총알끼리 충돌 방식: mass = 접촉 틱 교환 + 질량 모델(현재), instant = 이전 방식(내구도 비교로 한 번에 승패)'],
   ['bulletHp', CFG.bulletHp, '총알 체력 = 관통 능력치 × 이 값'], ['drag', CFG.drag, '탱크 마찰(최종 속도 = 이동 속도)'], ['playerR', CFG.playerR, '1레벨 탱크 반지름'], ['particles', String(CFG.particles), '파티클 효과 켜기'],
   ['scoreboardSmooth', CFG.scoreboardSmooth, '리더보드 게이지가 목표 길이로 따라가는 속도(1/초, 클수록 빠름, 0이면 즉시)'],
-  ['bodyPhys', JSON.stringify(CFG.bodyPhys), '몸통 충돌 물리: mode(tuned/legacy), shapeMass = 탱크와 부딪힐 때 도형 질량에 곱하는 배율(작을수록 가벼움)'], ['bulletRange', JSON.stringify(CFG.bulletRange), '한 발의 총 피해 범위: mode(range/legacy), target(tank/all), tMin 하한 틱 수, tMaxA/tMaxB 상한 틱 수 = tMaxA + tMaxB × P (P = 총알 체력 ÷ bulletHp)'], ['bulletLife', CFG.bulletLife, '총알 지속시간 배율(기본 1.9초 × 이 값)'], ['bulletPush', CFG.bulletPush, '총알에 밀리는 강도(대상 속도 증가 배율)'], ['bulletDeflect', CFG.bulletDeflect, '총알이 꺾이는 강도'], ['bulletPushCap', CFG.bulletPushCap, '한 프레임에 더해지는 속도 상한(px/초)'], ['pushTank', CFG.pushTank, '탱크·크래셔가 받는 밀림 배율(bulletPush에 곱함)'], ['pushShape', CFG.pushShape, '도형이 받는 밀림 배율'], ['pushBullet', CFG.pushBullet, '총알끼리 충돌 시 밀림 배율'], ['bulletClashKeepDir', CFG.bulletClashKeepDir, '총알끼리 충돌 뒤에도 진행 방향을 충돌 전 방향으로 유지(true). false면 이전처럼 꺾임·밀림으로 방향이 바뀜'], ['bulletMinSpeed', CFG.bulletMinSpeed, '총알끼리 충돌 뒤 유지하는 최소 속도(처음 속도의 비율, 0이면 하한 없음)'], ['bulletBaseDmg', CFG.bulletBaseDmg, '총알 질량의 기준 피해(피해가 클수록 총알이 무거움)'], ['bulletSpeedMul', CFG.bulletSpeedMul, '총알 기본 속도 배율(포인트로 늘어난 속도까지 전체에 곱함, 사거리도 같은 비율로 변함)'], ['bulletSizeMul', CFG.bulletSizeMul, '총알 기본 크기 배율(반동에는 영향 없음)'], ['viewScale', CFG.viewScale, '화면 기본 배율(클수록 확대, 개발자 휠 줌은 이 값에 곱해짐)'], ['shapeGap', CFG.shapeGap, '도형 사이 최소 간격(px)'], ['shapeDensity', CFG.shapeDensity.toExponential(), '둥지 밖 일반 도형 밀도(개/px²)'],
+  ['bodyPhys', JSON.stringify(CFG.bodyPhys), '몸통 충돌 물리: mode(tuned/legacy), shapeMass = 탱크와 부딪힐 때 도형 질량에 곱하는 배율(작을수록 가벼움)'], ['bulletRange', JSON.stringify(CFG.bulletRange), '한 발의 총 피해 범위: mode(range/legacy), target(tank/all), tMin 하한 틱 수, tMaxA/tMaxB 상한 틱 수 = tMaxA + tMaxB × P (P = 총알 체력 ÷ bulletHp)'], ['classUpLevel / classUpLevel2', `${CFG.classUpLevel} / ${CFG.classUpLevel2}`, '클래스를 고르는 레벨(15레벨 / 30레벨)'], ['classUp30', JSON.stringify(CFG.classUp30), '15레벨 클래스 -> 30레벨에서 고를 수 있는 클래스 목록(비어 있으면 타일 없음)'], ['classes.*.reloadMul / par', '(클래스 정의)', '30레벨 클래스의 재장전 배율 / 이전 클래스(봇의 선호 거리·능력치 투자가 없을 때 따름)'], ['bulletLife', CFG.bulletLife, '총알 지속시간 배율(기본 1.9초 × 이 값)'], ['bulletPush', CFG.bulletPush, '총알에 밀리는 강도(대상 속도 증가 배율)'], ['bulletDeflect', CFG.bulletDeflect, '총알이 꺾이는 강도'], ['bulletPushCap', CFG.bulletPushCap, '한 프레임에 더해지는 속도 상한(px/초)'], ['pushTank', CFG.pushTank, '탱크·크래셔가 받는 밀림 배율(bulletPush에 곱함)'], ['pushShape', CFG.pushShape, '도형이 받는 밀림 배율'], ['pushBullet', CFG.pushBullet, '총알끼리 충돌 시 밀림 배율'], ['bulletClashKeepDir', CFG.bulletClashKeepDir, '총알끼리 충돌 뒤에도 진행 방향을 충돌 전 방향으로 유지(true). false면 이전처럼 꺾임·밀림으로 방향이 바뀜'], ['bulletMinSpeed', CFG.bulletMinSpeed, '총알끼리 충돌 뒤 유지하는 최소 속도(처음 속도의 비율, 0이면 하한 없음)'], ['bulletBaseDmg', CFG.bulletBaseDmg, '총알 질량의 기준 피해(피해가 클수록 총알이 무거움)'], ['bulletSpeedMul', CFG.bulletSpeedMul, '총알 기본 속도 배율(포인트로 늘어난 속도까지 전체에 곱함, 사거리도 같은 비율로 변함)'], ['bulletSizeMul', CFG.bulletSizeMul, '총알 기본 크기 배율(반동에는 영향 없음)'], ['viewScale', CFG.viewScale, '화면 기본 배율(클수록 확대, 개발자 휠 줌은 이 값에 곱해짐)'], ['shapeGap', CFG.shapeGap, '도형 사이 최소 간격(px)'], ['shapeDensity', CFG.shapeDensity.toExponential(), '둥지 밖 일반 도형 밀도(개/px²)'],
   ['hyperAfter', CFG.hyperAfter, '급속 회복 시작 무피격 시간(초)'], ['hyperRate', CFG.hyperRate, '급속 회복 초당 최대 체력 비율'],
   ['spawnInvuln', CFG.spawnInvuln, '스폰 무적 최대 시간(초)'], ['respawnMode', CFG.respawnMode, "재시작 레벨 규칙('diep' 또는 'reset')"],
   ['recoilK / recoilV / recoilMax', `${CFG.recoilK} / ${CFG.recoilV} / ${CFG.recoilMax}`, '반동 계수 / 기준 속도 / 한 발 상한'], ['recoilMul', CFG.recoilMul, '모든 레벨에 적용하는 반동 배율(레벨 보정 없음)'], ['classUpLevel', CFG.classUpLevel, '클래스 선택 레벨'],
@@ -819,6 +824,7 @@ add(...NUM([
   '레벨 15 미만 봇의 둥지 규칙 3개(둥지 도형을 파밍 후보에서 제외, 둥지 반지름 + 250 안에서 밀려남, 둥지 반지름 + 900 안 소환 제외)를 한 번 삭제했다가 다시 복원. 봇 배회 방향 갱신 간격을 5~10초로 변경(botFx.wanderTime).',
   '도주 후 위협 기억(botFight.fleeMemory 5초: 후보 제외, 구역에서 밀려남, 배회 방향 보정)과 도형·크래셔 후보의 들어오는/벗어나는 거리 분리(botFx.farmIn 900 / farmOut 1200, crasherIn 700 / crasherOut 900) 추가. fleeMemory 0과 farmOut = farmIn으로 이전 동작 복귀.',
   '테스트 도구에 aicheck(봇 AI 측정)와 memorycheck 시나리오 추가.',
+  '30레벨 전직 1단계: 15레벨 클래스에서 고르는 30레벨 클래스 구조(classUpLevel2, classUp30, par, reloadMul)와 Triple Shot, Twin Flank, Quad Tank 추가. 플레이어(타일 클릭)와 봇(균등 추첨)이 같은 규칙(classChoices)을 사용. Sniper·Machine Gun의 30레벨 선택지는 다음 단계. 테스트 도구에 classcheck 시나리오 추가.',
   '중앙 둥지 도형 밀도 30% 감소: 기준 오각형 수 nest.pentagons 40 → 28(밀도 1.05e-5 → 7.4e-6/px²), 크래셔 기준 수 nest.crasherMax 22 → 15(약 32% 감소). 알파 오각형은 그대로. nest.pentagons 40, nest.crasherMax 22로 이전 동작 복귀.',
   '군집 개편(clusters.mode = grow): 위치를 정한 뒤 40~80초 동안 도형을 하나씩 만들고, 만든 개수가 목표에 닿으면 군집을 바로 없애며 도형은 일반 도형이 됨(처치로 줄어도 보충하지 않는 총 생성 예산). 게임 시작 때는 목표의 20~90%를 미리 채움, 일반 도형 초과분은 오래된 것부터 지움, 봇은 30% 이상 찬 군집만 배회 목적지로 삼음. 총 도형 수 유지를 위해 일반 도형 밀도 shapeDensity 3.6e-6 → 4.1e-6. clusters.mode = legacy와 shapeDensity 3.6e-6으로 이전 동작 복귀. 측정(시드 1, 15분, 1회, 개편 전 대비): 전체 도형 수 평균 1,348 → 1,413, 군집 처치 2.76 → 1.19개/초, 일반 도형 처치 4.35 → 5.82개/초, 군집이 목표를 채우는 데 평균 61.4초(42~83초), 목표 초과 생성·종료 뒤 생성 0건, 군집 수 7 유지, `pop` 봇 사망 분당 2.23 → 2.33, 봇의 탱크 처치 점수 비중 23.7% → 29.1%, `fp`(가짜 플레이어) 15분 뒤 레벨 37 → 30.5(표본 1회, 오차 큼). 테스트 도구에 clustercheck 시나리오 추가.',
   '군집 도형 보충 속도를 군집당 5개/초에서 1개/초로 낮추고(clusters.refill), 총량 유지를 위해 군집 목표 도형 수를 20% 올림(clusters.density 2.8e-5 → 3.36e-5). refill 5, density 2.8e-5로 이전 동작 복귀. 측정(시드 1, 15분, 1회): 전체 도형 수 평균 1,336 → 1,348, 군집 처치 6.66 → 2.76개/초, 일반 도형 처치 3.42 → 4.35개/초, 봇 사망 `pop` 분당 1.6 → 2.2, 봇의 탱크 처치 점수 비중 13.9% → 23.7%, `fp`(가짜 플레이어) 15분 뒤 레벨 44 → 37(표본 1회, 오차 큼). 테스트 도구에 shapeflow 시나리오 추가.',
