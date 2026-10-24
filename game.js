@@ -94,6 +94,8 @@ CFG.botFx.wander = { mode: 'natural', spdBase: 0.55, spdK: 0.3, turnRate: 0.8, w
 CFG.botFx.flee = { mode: 'natural', sideK: 0.5, wobble: 0.3, sideT: [0.6, 1.4], sideRate: 2.5, turnRate: 4, lookAhead: 500, edgeMargin: 250, edgePush: 1 };
 // aim(조준): 오차 최대 E = e0 x (1 - 숙련도) + ed x (거리 / 사거리) + ev x (상대 가속 / accRef), 오차 각도는 drift초마다 새 목표로 부드럽게 이동, 봇마다 습관 배율 habit[0] + habit[1] x 습관, 예측 시간 배율은 1 +/- leadErr(봇마다 고정), 새 탱크를 노리면 숙련도에 따라 lockMax~lockMin초 동안 회전 속도가 lockSlow배
 CFG.botFx.aim = { mode: 'human', e0: 0.1, ed: 0.06, ev: 0.05, accRef: 1000, drift: 0.3, habit: [0.7, 0.6], leadErr: 0.1, lockMax: 0.35, lockMin: 0.15, lockSlow: 0.35 };
+// 몸통 충돌 물리: 탱크가 도형과 부딪힐 때 계산에 쓰는 도형의 질량 = r x r x mass x shapeMass[도형 종류]. 값이 작을수록 도형이 가벼워 탱크가 덜 멈추고 도형이 더 쉽게 밀림(1 = 이전과 같음, 적은 종류는 1). mode 'legacy'는 shapeMass를 쓰지 않음(이전 동작). 탱크끼리·크래셔와의 충돌, 도형끼리의 충돌, 총알 밀림은 영향 없음
+CFG.bodyPhys = { mode: 'tuned', shapeMass: { square: 0.35, triangle: 0.35, pentagon: 0.35 } };
 CFG.scoreboardSmooth = 6; // 리더보드 게이지가 목표 길이로 따라가는 속도(1/초, 클수록 빠름, 0이면 즉시). 6이면 약 0.5초에 95% 도달
 const TICK = 0.04; // diep.io 서버 틱(1틱 = 0.04초)
 const TANK_RT = [15, 14, 13, 12, 11, 10, 9, 8]; // 기본 Tank 재장전(틱): 포인트당 -1틱. Sniper/Machine Gun은 클래스의 rt 표 사용
@@ -841,7 +843,7 @@ class Game {
     const c = collide(a, b); if (!c || c.pen < 1) return;
     const bT = !!b.up, toB = a.s.body * (bT ? 6 : 4), toA = bT ? b.s.body * 6 : b.dmg; // (Body Damage 포인트+5) x (대 탱크 6 / 대 도형 4)
     a.hurt(toA, b); this.damage(b, toB, a);
-    const ma = a.r * a.r, mb = ((b.s && b.s.mass) || 1) * b.r * b.r, im = 1 / ma + 1 / mb;
+    const BP = CFG.bodyPhys, sm = bT || BP.mode === 'legacy' ? 1 : (BP.shapeMass[b.kind] || 1), ma = a.r * a.r, mb = ((b.s && b.s.mass) || 1) * b.r * b.r * sm, im = 1 / ma + 1 / mb; /* 도형 질량 배율(작은 도형만 가볍게) */
     const vn = (b.vx - a.vx) * c.nx + (b.vy - a.vy) * c.ny;
     if (vn < 0) { const j = -1.6 * vn / im; a.vx -= j * c.nx / ma; a.vy -= j * c.ny / ma; b.vx += j * c.nx / mb; b.vy += j * c.ny / mb; }
     const cor = c.pen * 0.65, wa = (1 / ma) / im, wb = (1 / mb) / im; // 가벼운 쪽이 더 많이 밀려남

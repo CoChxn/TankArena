@@ -317,7 +317,7 @@ add(...T(['충돌 상대', '내가 받는 피해', '내가 주는 피해'], [
   ['탱크 → 크래셔', '크래셔 몸통 피해 8', '내 Body Damage 능력치 × 4'],
 ], [2200, 3700, W - 5900]));
 add(...BUL([
-  '**튕김:** 반발 계수 0.6, 질량 = 반지름² × 도형 질량 배수(육각형 2, 알파 4). 겹침은 겹친 양의 65%씩 질량이 가벼운 쪽이 더 많이 밀려 해소합니다.',
+  '**튕김:** 반발 계수 0.6, 질량 = 반지름² × 도형 질량 배수(육각형 2, 알파 4)이고, 탱크와 부딪힐 때 사각형·삼각형·오각형은 여기에 `bodyPhys.shapeMass`(' + CFG.bodyPhys.shapeMass.square + ')를 더 곱해 가볍게 계산합니다(탱크가 덜 멈춤, `bodyPhys.mode = legacy`이면 곱하지 않음, 육각형·알파·크래셔·탱크끼리의 충돌은 그대로). 겹침은 겹친 양의 65%씩 질량이 가벼운 쪽이 더 많이 밀려 해소합니다.',
   '무적 상태의 탱크는 피해를 받지 않지만 상대에게는 피해를 줍니다.',
 ]));
 add(H3('레벨 1 탱크(체력 50)가 도형과 부딪힐 때 (계산값)'));
@@ -606,7 +606,7 @@ add(...T(['이름', '값', '의미'], [
   ['world', n0(CFG.world), '좌표 공간 한 변'], ['grid', CFG.grid, '배경 격자 간격(px)'], ['maxLevel', CFG.maxLevel, '최대 레벨'], ['maxPts', CFG.maxPts, '능력치당 최대 포인트'], ['clashTol', CFG.clashTol, '총알끼리 충돌 시 동률 판정 오차(bulletClashMode = instant에서만 사용)'], ['bulletClashMode', CFG.bulletClashMode, '총알끼리 충돌 방식: mass = 접촉 틱 교환 + 질량 모델(현재), instant = 이전 방식(내구도 비교로 한 번에 승패)'],
   ['bulletHp', CFG.bulletHp, '총알 체력 = 관통 능력치 × 이 값'], ['drag', CFG.drag, '탱크 마찰(최종 속도 = 이동 속도)'], ['playerR', CFG.playerR, '1레벨 탱크 반지름'], ['particles', String(CFG.particles), '파티클 효과 켜기'],
   ['scoreboardSmooth', CFG.scoreboardSmooth, '리더보드 게이지가 목표 길이로 따라가는 속도(1/초, 클수록 빠름, 0이면 즉시)'],
-  ['bulletLife', CFG.bulletLife, '총알 지속시간 배율(기본 1.9초 × 이 값)'], ['bulletPush', CFG.bulletPush, '총알에 밀리는 강도(대상 속도 증가 배율)'], ['bulletDeflect', CFG.bulletDeflect, '총알이 꺾이는 강도'], ['bulletPushCap', CFG.bulletPushCap, '한 프레임에 더해지는 속도 상한(px/초)'], ['pushTank', CFG.pushTank, '탱크·크래셔가 받는 밀림 배율(bulletPush에 곱함)'], ['pushShape', CFG.pushShape, '도형이 받는 밀림 배율'], ['pushBullet', CFG.pushBullet, '총알끼리 충돌 시 밀림 배율'], ['bulletClashKeepDir', CFG.bulletClashKeepDir, '총알끼리 충돌 뒤에도 진행 방향을 충돌 전 방향으로 유지(true). false면 이전처럼 꺾임·밀림으로 방향이 바뀜'], ['bulletMinSpeed', CFG.bulletMinSpeed, '총알끼리 충돌 뒤 유지하는 최소 속도(처음 속도의 비율, 0이면 하한 없음)'], ['bulletBaseDmg', CFG.bulletBaseDmg, '총알 질량의 기준 피해(피해가 클수록 총알이 무거움)'], ['bulletSpeedMul', CFG.bulletSpeedMul, '총알 기본 속도 배율(포인트로 늘어난 속도까지 전체에 곱함, 사거리도 같은 비율로 변함)'], ['bulletSizeMul', CFG.bulletSizeMul, '총알 기본 크기 배율(반동에는 영향 없음)'], ['viewScale', CFG.viewScale, '화면 기본 배율(클수록 확대, 개발자 휠 줌은 이 값에 곱해짐)'], ['shapeGap', CFG.shapeGap, '도형 사이 최소 간격(px)'], ['shapeDensity', CFG.shapeDensity.toExponential(), '둥지 밖 일반 도형 밀도(개/px²)'],
+  ['bodyPhys', JSON.stringify(CFG.bodyPhys), '몸통 충돌 물리: mode(tuned/legacy), shapeMass = 탱크와 부딪힐 때 도형 질량에 곱하는 배율(작을수록 가벼움)'], ['bulletLife', CFG.bulletLife, '총알 지속시간 배율(기본 1.9초 × 이 값)'], ['bulletPush', CFG.bulletPush, '총알에 밀리는 강도(대상 속도 증가 배율)'], ['bulletDeflect', CFG.bulletDeflect, '총알이 꺾이는 강도'], ['bulletPushCap', CFG.bulletPushCap, '한 프레임에 더해지는 속도 상한(px/초)'], ['pushTank', CFG.pushTank, '탱크·크래셔가 받는 밀림 배율(bulletPush에 곱함)'], ['pushShape', CFG.pushShape, '도형이 받는 밀림 배율'], ['pushBullet', CFG.pushBullet, '총알끼리 충돌 시 밀림 배율'], ['bulletClashKeepDir', CFG.bulletClashKeepDir, '총알끼리 충돌 뒤에도 진행 방향을 충돌 전 방향으로 유지(true). false면 이전처럼 꺾임·밀림으로 방향이 바뀜'], ['bulletMinSpeed', CFG.bulletMinSpeed, '총알끼리 충돌 뒤 유지하는 최소 속도(처음 속도의 비율, 0이면 하한 없음)'], ['bulletBaseDmg', CFG.bulletBaseDmg, '총알 질량의 기준 피해(피해가 클수록 총알이 무거움)'], ['bulletSpeedMul', CFG.bulletSpeedMul, '총알 기본 속도 배율(포인트로 늘어난 속도까지 전체에 곱함, 사거리도 같은 비율로 변함)'], ['bulletSizeMul', CFG.bulletSizeMul, '총알 기본 크기 배율(반동에는 영향 없음)'], ['viewScale', CFG.viewScale, '화면 기본 배율(클수록 확대, 개발자 휠 줌은 이 값에 곱해짐)'], ['shapeGap', CFG.shapeGap, '도형 사이 최소 간격(px)'], ['shapeDensity', CFG.shapeDensity.toExponential(), '둥지 밖 일반 도형 밀도(개/px²)'],
   ['hyperAfter', CFG.hyperAfter, '급속 회복 시작 무피격 시간(초)'], ['hyperRate', CFG.hyperRate, '급속 회복 초당 최대 체력 비율'],
   ['spawnInvuln', CFG.spawnInvuln, '스폰 무적 최대 시간(초)'], ['respawnMode', CFG.respawnMode, "재시작 레벨 규칙('diep' 또는 'reset')"],
   ['recoilK / recoilV / recoilMax', `${CFG.recoilK} / ${CFG.recoilV} / ${CFG.recoilMax}`, '반동 계수 / 기준 속도 / 한 발 상한'], ['recoilMul', CFG.recoilMul, '모든 레벨에 적용하는 반동 배율(레벨 보정 없음)'], ['classUpLevel', CFG.classUpLevel, '클래스 선택 레벨'],
@@ -805,6 +805,7 @@ add(...NUM([
   '레벨 15 미만 봇의 둥지 규칙 3개(둥지 도형을 파밍 후보에서 제외, 둥지 반지름 + 250 안에서 밀려남, 둥지 반지름 + 900 안 소환 제외)를 한 번 삭제했다가 다시 복원. 봇 배회 방향 갱신 간격을 5~10초로 변경(botFx.wanderTime).',
   '도주 후 위협 기억(botFight.fleeMemory 5초: 후보 제외, 구역에서 밀려남, 배회 방향 보정)과 도형·크래셔 후보의 들어오는/벗어나는 거리 분리(botFx.farmIn 900 / farmOut 1200, crasherIn 700 / crasherOut 900) 추가. fleeMemory 0과 farmOut = farmIn으로 이전 동작 복귀.',
   '테스트 도구에 aicheck(봇 AI 측정)와 memorycheck 시나리오 추가.',
+  '몸통 충돌: 사각형·삼각형·오각형이 탱크와 부딪힐 때 질량을 0.35배로 계산해 탱크가 덜 멈추게 변경(bodyPhys). 테스트 도구에 bodycheck 시나리오 추가. bodyPhys.mode = legacy로 이전 동작 복귀.',
   '봇 AI 사람다운 행동 개선: 배회 속도·방향 변경(botFx.wander), 도주 방향에 옆 성분·흔들림·회전 속도 제한·가장자리 회피(botFx.flee), 조준 오차가 계속 변하고 거리·상대 가속에 비례하며 노림 지연·습관·예측 오차 추가(botFx.aim). 각 mode를 legacy로 두면 이전 동작.',
   'npm run check에 짧은 sanity 추가, 문서 생성기가 ../game.js를 읽고 docs/에 출력하도록 경로 수정, traitcheck에 사람다운 조준 확인([6b]) 추가.',
   '리더보드 변경: 아이콘 방향(1위 왼쪽, 나머지 오른쪽), 아이콘이 게이지 끝에 붙어 다님, 게이지 연초록·탱크 모두 파랑, 짙은 회색 알약 트랙·알약 게이지, 글자를 아이콘 위에 표시, 게이지가 목표 길이로 부드럽게 이동(scoreboardSmooth).',
