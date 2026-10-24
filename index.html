@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tank Arena</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="overlay">
+  <h1>Tank Arena</h1>
+  <p>WASD move &middot; mouse aim &middot; click or Space to fire<br>E toggles auto-fire &middot; 1-8 or click the bars to upgrade</p>
+  <input id="nick" maxlength="15" placeholder="Unnamed tank" autocomplete="off" spellcheck="false" aria-label="Nickname">
+  <button id="play">Play</button>
+</div>
+<div id="dead" class="overlay hidden">
+  <h2 id="dead-title">You were destroyed</h2>
+  <p id="result"></p>
+  <input id="nick2" maxlength="15" placeholder="Unnamed tank" autocomplete="off" spellcheck="false" aria-label="Nickname">
+  <button id="again">Play again</button>
+</div>
+<script src="game.js"></script>
+</body>
+</html>

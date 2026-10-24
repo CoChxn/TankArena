@@ -1,0 +1,15 @@
+html, body { margin: 0; height: 100%; overflow: hidden; background: #b8b8b8; font-family: Ubuntu, "Trebuchet MS", sans-serif; }
+canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+.overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(40, 40, 40, .45); color: #fff; text-align: center; text-shadow: 0 2px 0 rgba(0, 0, 0, .35); }
+.overlay.hidden { display: none; }
+.overlay h1 { margin: 0; font-size: clamp(40px, 8vw, 84px); letter-spacing: 1px; }
+.overlay h2 { margin: 0; font-size: clamp(30px, 5vw, 52px); }
+.overlay p { margin: 0; font-size: 16px; line-height: 1.6; }
+.overlay button { font: inherit; font-size: 22px; font-weight: bold; color: #fff; background: #00b2e1; border: 4px solid #0085a8; border-radius: 8px; padding: 10px 44px; cursor: pointer; }
+.overlay button:hover { background: #22c4f0; }
+.overlay button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.overlay input { font: inherit; font-size: 20px; text-align: center; color: #fff; background: rgba(0, 0, 0, .35); border: 3px solid rgba(255, 255, 255, .55); border-radius: 8px; padding: 8px 14px; width: 260px; max-width: 80vw; outline: none; text-shadow: none; }
+.overlay input::placeholder { color: rgba(255, 255, 255, .6); }
+.overlay input:focus { border-color: #00b2e1; }
+#dead { background: rgba(40, 40, 40, .28); }
+#result { white-space: pre-line; }
