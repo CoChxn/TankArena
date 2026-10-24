@@ -369,13 +369,15 @@ add(H3('(2) 도형 군집 (맵 곳곳의 작은 도형 밀집 구역)'));
 add(...T(['항목', '값'], [
   ['군집 수', `맵 면적 ÷ ${n0(K.areaPerCluster)} (반올림 기준 +0.35, 최소 1, 최대 ${K.maxCount}). 경계값에서 늘었다 줄었다 하지 않도록 ±0.35의 여유(히스테리시스)를 둠`],
   ['반지름', `${K.rMin} ~ ${K.rMax} 사이 무작위(군집마다)`],
-  ['도형 수', `면적 × ${K.density.toExponential()} × (0.9~1.1 무작위) — 평균 약 ${f1(avgClusterShapes)}개, 일반 구역의 약 7.8배 밀도`],
+  ['도형 수(목표, target)', `면적 × ${K.density.toExponential()} × (0.9~1.1 무작위) — 평균 약 ${f1(avgClusterShapes)}개. ${K.mode === 'legacy' ? '목표를 계속 유지하도록 보충' : '목표는 그 군집이 한 번에 만들어 내는 총 도형 수(총 생성 예산)'}`],
   ['종류', '사각형 군집 45% / 삼각형 군집 35% / 혼합 군집 20%'],
   ['구성', '사각형 군집: 사각형 85% + 삼각형 15%\n삼각형 군집: 삼각형 75% + 사각형 25%\n혼합 군집: 사각형 50% + 삼각형 40% + 오각형 10%'],
   ['전체 구성비(기댓값)', `사각형 ${f1(clComp.square * 100)}%, 삼각형 ${f1(clComp.triangle * 100)}%, 오각형 ${f1(clComp.pentagon * 100)}%`],
-  ['수명과 이동', `수명 ${K.life}초(×0.8~1.2). 수명이 끝나거나, 30초가 지난 뒤 도형이 목표의 ${K.depleted * 100}% 미만이거나, 맵 경계·둥지에 가까워지면 다른 곳으로 이동(남은 도형은 일반 도형이 됨)`],
+  ['수명과 이동', K.mode === 'legacy' ? `수명 ${K.life}초(×0.8~1.2). 수명이 끝나거나, 30초가 지난 뒤 도형이 목표의 ${K.depleted * 100}% 미만이거나, 맵 경계·둥지에 가까워지면 다른 곳으로 이동(남은 도형은 일반 도형이 됨)` : `일생: 위치 확정(도형 0개, 게임 시작 때는 목표의 ${K.startFill[0] * 100}~${K.startFill[1] * 100}%를 미리 채움) → 성장(${K.growTime[0]}~${K.growTime[1]}초 동안 하나씩 생성) → 생성한 개수(spawned)가 목표에 닿으면 군집을 바로 없애고 도형은 일반 도형이 됨. 군집 수는 면적 기준으로 유지되어 다른 곳에 새 군집이 생김. 안전장치로 수명 ${K.life}초(×0.8~1.2), 맵 경계·둥지에 가까워지는 경우에도 같은 방식으로 종료`],
   ['위치 조건', `둥지에서 반지름 + 300 이상, 다른 군집과 ${K.minGap}px 이상, 플레이어 시야(평소 기준) 밖`],
-  ['보충', `군집당 초당 최대 ${K.refill}개(이전 5개/초 = 0.4초마다 2개). 0.4초마다 ${K.refill} × 0.4씩 누적해 1이 넘으면 생성하고, 화면 안이라 막혀도 한 틱 최대 2개까지만 몰아서 생성. 목표 개수(도형 수)는 보충을 느리게 한 만큼 면적 × density로 이전보다 20% 높임`],
+  ['보충 / 성장', K.mode === 'legacy' ? `군집당 초당 최대 ${K.refill}개(이전 5개/초 = 0.4초마다 2개). 0.4초마다 ${K.refill} × 0.4씩 누적해 1이 넘으면 생성하고, 화면 안이라 막혀도 한 틱 최대 2개까지만 몰아서 생성` : `보충하지 않음. 처치로 도형이 줄어도 다시 만들지 않고, 군집마다 초당 (목표 ÷ 성장 시간)개를 누적해 생성(화면 안이라 막히면 한 틱 최대 2개까지만 몰아서 생성). 생성에 성공한 만큼만 spawned를 올림`],
+  ['종료 뒤 도형', K.release === 'zone' ? '원래 군집 경계 안에 머묾(일반 도형으로 셈)' : '경계 튕김이 사라져 일반 도형처럼 표류하며 흩어짐(초당 5~22px). 일반 도형 수가 목표의 1.15배를 넘을 때는 화면 밖의 오래된 도형부터 지움(군집이 막 풀어 놓은 도형이 먼저 지워지지 않도록)'],
+  ['봇 배회', `도형이 목표의 ${K.attractMin * 100}% 이상 찬 군집만 배회 목적지 후보(성장 중인 빈 군집으로 몰리지 않음)`],
 ], [2300, W - 2300]));
 add(H3('(3) 중앙 Pentagon Nest와 크래셔'));
 add(...T(['항목', '값'], [
@@ -626,7 +628,7 @@ add(...T(['이름', '값', '의미'], [
 add(H2('9.2 맵, 군집, 둥지, 크래셔'));
 add(...T(['이름', '값', '의미'], [
   ['map.areaPerTank', n0(CFG.map.areaPerTank), '탱크 1대당 면적'], ['map.min / max', `${n0(CFG.map.min)} / ${n0(CFG.map.max)}`, '맵 한 변 범위'], ['map.rate', CFG.map.rate, '맵 크기 변화 속도(px/초)'], ['map.smooth', CFG.map.smooth, '탱크 수 평균 시간(초)'],
-  ['clusters.areaPerCluster', n0(K.areaPerCluster), '군집 1개당 맵 면적'], ['clusters.refill', K.refill, '군집 도형 보충 속도(개/초, 이전 5). density는 이전 2.8e-5에서 x1.2'], ['clusters.maxCount', K.maxCount, '군집 최대 수'], ['clusters.rMin / rMax', `${K.rMin} / ${K.rMax}`, '군집 반지름 범위'], ['clusters.density', K.density.toExponential(), '군집 안 도형 밀도'], ['clusters.life', K.life, '군집 수명(초)'], ['clusters.minGap', K.minGap, '군집 사이 최소 거리'], ['clusters.depleted', K.depleted, '이 비율 미만이면 이동(30초 후)'],
+  ['clusters.areaPerCluster', n0(K.areaPerCluster), '군집 1개당 맵 면적'], ['clusters.refill', K.refill, 'legacy 모드의 군집 도형 보충 속도(개/초, 이전 5). density는 이전 2.8e-5에서 x1.2'], ['clusters.mode / growTime / startFill', `${K.mode} / ${JSON.stringify(K.growTime)} / ${JSON.stringify(K.startFill)}`, 'grow(성장 후 목표 달성 시 종료) 또는 legacy / 군집이 목표를 채우는 시간(초, 범위) / 게임 시작 때 미리 채우는 비율(범위)'], ['clusters.release / attractMin', `${K.release} / ${K.attractMin}`, '종료 뒤 도형 처리(free 표류, zone 경계 안) / 봇이 배회 목적지로 삼는 군집의 최소 채움 비율'], ['clusters.maxCount', K.maxCount, '군집 최대 수'], ['clusters.rMin / rMax', `${K.rMin} / ${K.rMax}`, '군집 반지름 범위'], ['clusters.density', K.density.toExponential(), '군집 안 도형 밀도'], ['clusters.life', K.life, '군집 수명(초)'], ['clusters.minGap', K.minGap, '군집 사이 최소 거리'], ['clusters.depleted', K.depleted, '이 비율 미만이면 이동(30초 후)'],
   ['nest.r', N.r, '둥지 반지름(맵 refMap 기준)'], ['nest.refMap', n0(N.refMap), '둥지 크기 기준 맵 크기'], ['nest.pentagons', N.pentagons, '둥지 오각형(기준)'], ['nest.hexagons / hexRespawn', `${N.hexagons} / ${N.hexRespawn}`, '둥지 육각형 수 / 재등장 시간'], ['nest.alphaMax / alphaRespawn', `${N.alphaMax} / ${N.alphaRespawn}`, '알파 최대 수 / 재등장 시간(초)'], ['nest.crasherMax / largeRatio', `${N.crasherMax} / ${N.largeRatio}`, '크래셔 기준 수 / 큰 것 비율'],
 ], [2800, 1700, W - 4500]));
 add(H2('9.3 봇'));
@@ -817,6 +819,7 @@ add(...NUM([
   '레벨 15 미만 봇의 둥지 규칙 3개(둥지 도형을 파밍 후보에서 제외, 둥지 반지름 + 250 안에서 밀려남, 둥지 반지름 + 900 안 소환 제외)를 한 번 삭제했다가 다시 복원. 봇 배회 방향 갱신 간격을 5~10초로 변경(botFx.wanderTime).',
   '도주 후 위협 기억(botFight.fleeMemory 5초: 후보 제외, 구역에서 밀려남, 배회 방향 보정)과 도형·크래셔 후보의 들어오는/벗어나는 거리 분리(botFx.farmIn 900 / farmOut 1200, crasherIn 700 / crasherOut 900) 추가. fleeMemory 0과 farmOut = farmIn으로 이전 동작 복귀.',
   '테스트 도구에 aicheck(봇 AI 측정)와 memorycheck 시나리오 추가.',
+  '군집 개편(clusters.mode = grow): 위치를 정한 뒤 40~80초 동안 도형을 하나씩 만들고, 만든 개수가 목표에 닿으면 군집을 바로 없애며 도형은 일반 도형이 됨(처치로 줄어도 보충하지 않는 총 생성 예산). 게임 시작 때는 목표의 20~90%를 미리 채움, 일반 도형 초과분은 오래된 것부터 지움, 봇은 30% 이상 찬 군집만 배회 목적지로 삼음. 총 도형 수 유지를 위해 일반 도형 밀도 shapeDensity 3.6e-6 → 4.1e-6. clusters.mode = legacy와 shapeDensity 3.6e-6으로 이전 동작 복귀. 측정(시드 1, 15분, 1회, 개편 전 대비): 전체 도형 수 평균 1,348 → 1,413, 군집 처치 2.76 → 1.19개/초, 일반 도형 처치 4.35 → 5.82개/초, 군집이 목표를 채우는 데 평균 61.4초(42~83초), 목표 초과 생성·종료 뒤 생성 0건, 군집 수 7 유지, `pop` 봇 사망 분당 2.23 → 2.33, 봇의 탱크 처치 점수 비중 23.7% → 29.1%, `fp`(가짜 플레이어) 15분 뒤 레벨 37 → 30.5(표본 1회, 오차 큼). 테스트 도구에 clustercheck 시나리오 추가.',
   '군집 도형 보충 속도를 군집당 5개/초에서 1개/초로 낮추고(clusters.refill), 총량 유지를 위해 군집 목표 도형 수를 20% 올림(clusters.density 2.8e-5 → 3.36e-5). refill 5, density 2.8e-5로 이전 동작 복귀. 측정(시드 1, 15분, 1회): 전체 도형 수 평균 1,336 → 1,348, 군집 처치 6.66 → 2.76개/초, 일반 도형 처치 3.42 → 4.35개/초, 봇 사망 `pop` 분당 1.6 → 2.2, 봇의 탱크 처치 점수 비중 13.9% → 23.7%, `fp`(가짜 플레이어) 15분 뒤 레벨 44 → 37(표본 1회, 오차 큼). 테스트 도구에 shapeflow 시나리오 추가.',
   '총알 한 발이 탱크 한 대에 주는 총 피해에 범위(bulletRange: 하한 Dt × 1.5, 상한 Dt × (0.8 + 0.25 × P))를 둠. 측정 최소 2.7 → 6.8, 최대 233.3 → 109.9. 테스트 도구에 dmgrange 시나리오 추가. bulletRange.mode = legacy로 이전 동작 복귀.',
   '몸통 충돌: 사각형·삼각형·오각형이 탱크와 부딪힐 때 질량을 0.35배로 계산해 탱크가 덜 멈추게 변경(bodyPhys). 테스트 도구에 bodycheck 시나리오 추가. bodyPhys.mode = legacy로 이전 동작 복귀.',

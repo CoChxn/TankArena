@@ -7,7 +7,7 @@ const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
 
 const CFG = {
-  world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.6e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
+  world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 4.1e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
   // 레벨별 필요 점수 (diep.io 위키 표, 인덱스 = 레벨)
   scoreAt: [0, 0, 4, 13, 28, 50, 78, 113, 157, 211, 275, 350, 437, 538, 655, 787, 948, 1109, 1301, 1516, 1767, 2026, 2325, 2647, 3035, 3433, 3883, 4379, 4925, 5525, 6184, 6907, 7698, 8537, 9426, 10368, 11367, 12426, 13549, 14739, 16000, 17337, 18754, 20256, 21849, 23536],
   stats: [ // 값 = base + per x 포인트 (diep.io 위키 수식). regen/reload/body는 사용처에서 별도 공식을 적용
@@ -35,7 +35,7 @@ const CFG = {
   },
   // 도형 군집(소형 둥지): 맵 곳곳에 도형이 모여 있는 구역. 일정 시간이 지나거나 대부분 파괴되면 다른 곳으로 옮겨감
   map: { areaPerTank: 25e6, min: 7000, max: 23000, rate: 100, smooth: 30 }, // 맵 한 변 = sqrt(전체 탱크 수 x areaPerTank), min~max 제한, 초당 rate만큼 서서히 변화
-  clusters: { areaPerCluster: 33e6, maxCount: 7, rMin: 560, rMax: 720, density: 3.36e-5, refill: 1, life: 480, minGap: 2000, depleted: 0.3 }, // refill = 군집 한 곳이 도형을 다시 채우는 최대 속도(개/초, 이전 5 = 0.4초마다 2개), density = 면적당 목표 도형 수(이전 2.8e-5, 보충을 느리게 한 만큼 x1.2). 이전 동작으로 돌리려면 refill 5, density 2.8e-5 // 반지름은 rMin~rMax 사이 무작위, 도형 수 = 면적 x density
+  clusters: { areaPerCluster: 33e6, maxCount: 7, rMin: 560, rMax: 720, density: 3.36e-5, refill: 1, mode: 'grow', growTime: [40, 80], startFill: [0.2, 0.9], release: 'free', attractMin: 0.3, life: 480, minGap: 2000, depleted: 0.3 }, // refill = 군집 한 곳이 도형을 다시 채우는 최대 속도(개/초, 이전 5 = 0.4초마다 2개), density = 면적당 목표 도형 수(이전 2.8e-5, 보충을 느리게 한 만큼 x1.2). 이전 동작으로 돌리려면 refill 5, density 2.8e-5 // mode 'grow' = 군집이 위치를 정한 뒤 growTime(초, 범위에서 무작위) 동안 도형을 하나씩 만들고, 만든 개수(spawned)가 목표(target)에 닿으면 더 만들지 않고 군집을 바로 없애며 도형은 일반 도형이 됨(처치로 줄어도 보충하지 않는 총 생성 예산). 'legacy' = 이전 보충 방식(refill로 계속 보충, 소진·수명 시 이동). startFill = 게임 시작 때 목표의 몇 %까지 미리 채울지(범위), release 'free' = 풀린 도형은 표류하며 흩어짐, 'zone' = 풀린 뒤에도 원래 군집 경계 안에 머묾, attractMin = 봇이 배회 목적지로 삼는 군집의 최소 채움 비율 // 반지름은 rMin~rMax 사이 무작위, 도형 수 = 면적 x density
   nest: { r: 1100, refMap: 16583, pentagons: 40, hexagons: 0, hexRespawn: 40, alphaMax: 1, alphaRespawn: 120, crasherMax: 22, largeRatio: 0.35 }, // 맵 중앙의 Pentagon Nest. r/pentagons/crasherMax는 맵 한 변이 refMap일 때의 값이고, 반지름은 맵 크기에 비례, 오각형·크래셔 수는 면적에 비례(밀도 동일), 알파는 항상 alphaMax개
   // 탱크 클래스. 배율은 기본 Tank 기준(diep.io 위키 참고). 배럴 값은 탱크 반지름(r) 배율:
   // len 길이, w 밑 너비, w2 끝 너비, off 옆 오프셋, ang 방향 회전, size 총알 크기 배율
@@ -405,7 +405,7 @@ class Bot extends Player {
   wanderDir(g) { // 대상이 없을 때의 배회 방향: 목표지향이 높을수록 다른 탱크 쪽(사냥), 낮을수록 도형 군집 쪽(파밍)으로 향함. 가까이 갈 대상이 없으면 무작위
     const F = CFG.botFx; let tx = null, ty = null, bd = Infinity;
     if (Math.random() < this.pt.g) { const chk = t => { if (t === this || t.hp <= 0 || t.gone || (t === g.player && !g.player.alive)) return; const d = Math.hypot(t.x - this.x, t.y - this.y); if (d < bd && d < F.huntSense) { bd = d; tx = t.x; ty = t.y; } }; chk(g.player); for (const b of g.bots) chk(b); }
-    else { for (const c of g.clusters) { const d = Math.hypot(c.x - this.x, c.y - this.y); if (d < bd && d < F.farmSense && d > c.r * 0.5) { bd = d; tx = c.x; ty = c.y; } } }
+    else { for (const c of g.clusters) { const d = Math.hypot(c.x - this.x, c.y - this.y); if (CFG.clusters.mode !== 'legacy' && c.n < c.target * CFG.clusters.attractMin) continue; /* 성장 중이라 아직 도형이 적은 군집은 목적지로 삼지 않음 */ if (d < bd && d < F.farmSense && d > c.r * 0.5) { bd = d; tx = c.x; ty = c.y; } } }
     let a = tx === null ? rand(0, TAU) : Math.atan2(ty - this.y, tx - this.x) + rand(-0.5, 0.5);
     const th = this.threatNow(); if (th) { const away = Math.atan2(this.y - th.y, this.x - th.x); if (Math.abs(adiff(a, away)) > Math.PI - 1) a = away + rand(-0.5, 0.5); } // 도주한 상대 쪽(+/-1라디안) 방향이면 반대쪽으로
     return a;
@@ -561,7 +561,7 @@ class UI {
       L1(`crashers ${g.crashers.length}/${nestCrash()}  timer ${Math.max(0, g.crasherT).toFixed(1)}s  shape tick ${Math.max(0, g.shapeT).toFixed(2)}s`),
       H1('CLUSTERS'),
       L1(`count ${g.clusters.length}  want ${want.toFixed(2)} (area / ${(K.areaPerCluster / 1e6).toFixed(0)}M)  max ${K.maxCount}`)];
-    g.clusters.forEach((c, i) => wl.push(L1(`#${i + 1} ${c.type.padEnd(8)} r${Math.round(c.r)} n ${String(c.n).padStart(2)}/${c.target} age ${Math.round(c.age)}/${Math.round(c.life)}s @${Math.round(c.x)},${Math.round(c.y)}`)));
+    g.clusters.forEach((c, i) => wl.push(L1(`#${i + 1} ${c.type.padEnd(8)} r${Math.round(c.r)} n ${String(c.n).padStart(2)}/${c.target} sp ${c.spawned}/${c.target} age ${Math.round(c.age)}/${Math.round(c.life)}s @${Math.round(c.x)},${Math.round(c.y)}`)));
     this.panel(ctx, 16, 250, H - 250 - 262, wl);
   }
   draw(ctx, W, H) {
@@ -675,7 +675,7 @@ class Game {
     this.nTanks = 1 + CFG.bots.base; setMapSize(mapTarget(this.nTanks)); // 시작 맵 크기: 플레이어 + 기본 봇 수 기준
     this.clusters = []; this.reset(); this.player.alive = false;
     for (let i = 0, n = Math.max(1, Math.floor(Math.min(CFG.clusters.maxCount, MAP.size * MAP.size / CFG.clusters.areaPerCluster) + 0.35)); i < n; i++) this.newCluster(null, true); // 군집 수 = 맵 면적 / areaPerCluster
-    for (const c of this.clusters) for (let i = 0; i < c.target; i++) this.spawnShape(true, false, null, c);
+    for (const c of this.clusters) { const K = CFG.clusters, want = K.mode === 'legacy' ? c.target : Math.floor(c.target * rand(K.startFill[0], K.startFill[1])); for (let i = 0; i < want; i++) if (this.spawnShape(true, false, null, c) !== false) c.spawned++; } // 'grow'는 일부만 미리 채움(나머지는 성장)
     for (let i = 0, n = Math.round(CFG.shapeDensity * MAP.size * MAP.size); i < n; i++) this.spawnShape(true);
     for (let i = 0, n = nestPent(); i < n; i++) this.spawnShape(true, true);
     this.spawnShape(true, true, 'alpha');
@@ -745,9 +745,14 @@ class Game {
     if (!best) { if (old) old.age = 0; return false; }
     const t = Math.random(), r = best.r;
     Object.assign(c, best, { type: t < 0.45 ? 'square' : t < 0.8 ? 'triangle' : 'mixed', age: 0, life: K.life * rand(0.8, 1.2), n: 0,
-      target: Math.round(K.density * Math.PI * r * r * rand(0.9, 1.1)) });
+      target: Math.round(K.density * Math.PI * r * r * rand(0.9, 1.1)), spawned: 0, acc: 0, retired: false });
+    c.grow = c.target / rand(K.growTime[0], K.growTime[1]); /* 성장 속도(개/초): 목표를 growTime 동안 나눠 채움 */
     if (!old) this.clusters.push(c);
     return true;
+  }
+  endCluster(c) { // 'grow'에서 군집을 없앰: 도형은 일반 도형이 되어 표류하고('free'), 'zone'이면 원래 군집 경계 안에 머묾(일반 도형으로 셈). 같은 위치에는 곧바로 새 군집이 아니라 면적 기준 군집 수에 맞춰 다른 곳에 새로 생김
+    c.retired = true; if (CFG.clusters.release !== 'zone') for (const s of this.shapes) if (s.cl === c) s.cl = null;
+    const i = this.clusters.indexOf(c); if (i >= 0) this.clusters.splice(i, 1);
   }
   spawnShape(anywhere, nest, type, cl) { // nest=true면 Pentagon Nest 안(오각형, type='alpha'는 알파 오각형), 아니면 둥지 밖(사각형/삼각형/가끔 오각형)
     const T = CFG.shapes, W = CFG.world, cx = W / 2; let x, y, n = 0;
@@ -999,10 +1004,17 @@ class Game {
     this.shapeT -= dt;
     if (this.shapeT <= 0) {
       this.shapeT = 0.4; let out = 0, nestP = 0, alpha = 0, hex = 0; for (const c of this.clusters) c.n = 0;
-      for (const s of this.shapes) { if (s.nest) { if (s.kind === 'alpha pentagon') alpha++; else if (s.kind === 'hexagon') hex++; else nestP++; } else if (s.cl) s.cl.n++; else out++; }
-      for (const c of this.clusters) {
+      for (const s of this.shapes) { if (s.nest) { if (s.kind === 'alpha pentagon') alpha++; else if (s.kind === 'hexagon') hex++; else nestP++; } else if (s.cl && !s.cl.retired) s.cl.n++; else out++; } /* 군집이 끝난 뒤 경계 안에 남은('zone') 도형은 일반 도형으로 셈 */
+      const KC = CFG.clusters, gm = KC.mode !== 'legacy';
+      for (const c of this.clusters.slice()) { /* 'grow'에서는 순회 중 군집을 없애므로 복사본을 돎 */
         c.age += 0.4;
-        if (c.age > c.life || (c.age > 30 && c.n < c.target * CFG.clusters.depleted) || c.x - c.r < MAP.lo + 100 || c.x + c.r > MAP.hi - 100 || c.y - c.r < MAP.lo + 100 || c.y + c.r > MAP.hi - 100 || Math.hypot(c.x - cx, c.y - cx) < NEST.r + c.r) { for (const s of this.shapes) if (s.cl === c) s.cl = null; this.newCluster(c); continue; } // 소진/수명 종료: 남은 도형은 일반 도형이 되고 군집은 다른 곳으로 이동
+        if (c.age > c.life || (!gm && c.age > 30 && c.n < c.target * KC.depleted) || c.x - c.r < MAP.lo + 100 || c.x + c.r > MAP.hi - 100 || c.y - c.r < MAP.lo + 100 || c.y + c.r > MAP.hi - 100 || Math.hypot(c.x - cx, c.y - cx) < NEST.r + c.r) { if (gm) this.endCluster(c); else { for (const s of this.shapes) if (s.cl === c) s.cl = null; this.newCluster(c); } continue; } // 수명 종료·경계·둥지 겹침(legacy는 소진도): 'grow'는 군집을 없애고 도형은 일반 도형이 됨, legacy는 다른 곳으로 이동
+        if (gm) { // 성장: 초당 c.grow개를 누적해 정수만큼 생성하고 생성 성공한 만큼 spawned를 올림. spawned가 목표에 닿으면 군집 종료
+          c.acc = Math.min(c.acc + c.grow * 0.4, 2);
+          for (let g = Math.floor(c.acc + 1e-9); c.spawned < c.target && g-- > 0;) if (this.spawnShape(false, false, null, c) !== false) { c.acc -= 1; c.spawned++; c.n++; }
+          if (c.spawned >= c.target) this.endCluster(c);
+          continue;
+        }
         c.acc = Math.min((c.acc || 0) + CFG.clusters.refill * 0.4, 2); /* 보충 속도: 초당 refill개를 누적해 정수만큼 생성(밀린 만큼 한꺼번에 몰리지 않도록 한 틱 최대 2개) */
         for (let g = Math.floor(c.acc + 1e-9); c.n < c.target && g-- > 0;) if (this.spawnShape(false, false, null, c) !== false) { c.acc -= 1; c.n++; }
       }
@@ -1015,7 +1027,10 @@ class Game {
         }
       }
       const freeT = Math.round(CFG.shapeDensity * MAP.size * MAP.size); // 맵이 줄면 일반 도형도 화면 밖에서 서서히 줄임
-      if (out > freeT * 1.15) for (let i = this.shapes.length - 1, rm = 0; i >= 0 && rm < 2; i--) { const sh = this.shapes[i]; if (!sh.nest && !sh.cl && !this.cam.visibleBase(sh.x, sh.y, sh.r + 80)) { this.shapes.splice(i, 1); rm++; out--; } }
+      if (out > freeT * 1.15) {
+        if (gm) { for (let i = 0, rm = 0; i < this.shapes.length && rm < 2;) { const sh = this.shapes[i]; if (!sh.nest && (!sh.cl || sh.cl.retired) && !this.cam.visibleBase(sh.x, sh.y, sh.r + 80)) { this.shapes.splice(i, 1); rm++; out--; } else i++; } } /* 'grow': 오래된 도형부터 지움(막 풀린 군집 도형이 먼저 지워지지 않게) */
+        else for (let i = this.shapes.length - 1, rm = 0; i >= 0 && rm < 2; i--) { const sh = this.shapes[i]; if (!sh.nest && !sh.cl && !this.cam.visibleBase(sh.x, sh.y, sh.r + 80)) { this.shapes.splice(i, 1); rm++; out--; } }
+      }
       for (let g = 3; out < freeT && g-- > 0; out++) this.spawnShape(false);
       const nestT = nestPent(); // 둥지가 줄어들면 화면 밖의 초과 오각형을 서서히 제거
       if (nestP > nestT * 1.15) for (let i = this.shapes.length - 1, rm = 0; i >= 0 && rm < 2; i--) { const sh = this.shapes[i]; if (sh.nest && sh.kind === 'pentagon' && !this.cam.visibleBase(sh.x, sh.y, sh.r + 80)) { this.shapes.splice(i, 1); rm++; nestP--; } }

@@ -25,6 +25,7 @@ const SC = {
   shapes: ['총알 vs 도형 발수/관통, 몸통 충돌 피해, 재생 (순간 계산)', () => 2],
   dmgrange: ['총알 한 발이 탱크 한 대에 줄 수 있는 총 피해의 최소/평균/최대(정면 직격, 정지한 대상): 클래스 x 능력치 x 대상 방어', () => 8],
   shapeflow: ['도형 흐름 측정: 도형이 죽는 속도와 다시 생기는 속도(군집·일반·둥지), 도형 수 추이 (플레이어 정지, 봇만)', o => 5 + o.min * 3],
+  clustercheck: ['군집 일생 확인(grow 모드): 총 생성이 목표를 넘지 않는지, 목표 달성 뒤 생성이 없는지, 성장 시간, 종료 사유, 군집 수 유지, 도형 수', o => 5 + o.min * 3],
   bodycheck: ['몸통 충돌 물리 측정: 플레이어가 도형·탱크를 향해 계속 전진할 때 전진 속도, 대상이 밀린 거리, 멈춤 여부', () => 6],
   botspawn: ['봇 스폰 위치 분포(맵 전체 무작위인지)', () => 3],
   autofire: ['사망 시 오토파이어 해제, E 키 동작', () => 1],
@@ -349,6 +350,32 @@ S.shapeflow = o => { // 도형 종류(군집/일반/둥지)별로 죽는 속도�
   const mn = Math.min(...series.all), mx = Math.max(...series.all); say('전체 도형 수(10초마다 측정): 평균 ' + f1(series.all.reduce((a, b) => a + b, 0) / series.all.length) + ' | 최소 ' + mn + ' | 최대 ' + mx);
   { const L = series.all.length, third = Math.floor(L / 3), tail = series.all.slice(L - third), head = series.all.slice(0, third); const av = a => a.reduce((x, y) => x + y, 0) / a.length; say('처음 1/3 평균 ' + f1(av(head)) + ' → 마지막 1/3 평균 ' + f1(av(tail)) + ' (시작 직후의 영향을 빼고 보려면 마지막 1/3을 봄)'); rec('shapeflow.tail', av(tail)); }
   for (const k of ['cluster', 'free', 'nest']) { rec('shapeflow.kill.' + k, tot.kill[k] / secs); rec('shapeflow.spawn.' + k, tot.spawn[k] / secs); } rec('shapeflow.total', series.all.reduce((a, b) => a + b, 0) / series.all.length);
+};
+
+S.clustercheck = o => { // 군집(grow 모드)의 일생을 추적: 만들어진 시각, 생성 개수 추이, 종료 사유(목표 달성 / 수명·경계·둥지), 성장에 걸린 시간
+  const f1 = x => x.toFixed(1), K = C.clusters; if (K.mode === 'legacy') { say('=== [clustercheck] clusters.mode = legacy라 grow 확인 항목이 없음 ==='); return; }
+  say('=== [clustercheck] 군집 일생 (플레이어 정지·무적, ' + o.runs + '회 x ' + o.min + '분, 봇이 도형을 처치) | 목표 달성 시 즉시 종료, 성장 ' + K.growTime[0] + '~' + K.growTime[1] + '초, 시작 채움 ' + K.startFill.join('~') + ', release ' + K.release + ' ===');
+  const done = [], other = [], over = [], afterEnd = [], counts = [], totals = []; let created = 0, started = 0;
+  for (let r = 0; r < o.runs; r++) {
+    reseed('clustercheck' + r); fresh(); const seen = new Map();
+    for (const c of g.clusters) { seen.set(c, { t0: g.clock, init: true, target: c.target, fin: null }); started++; }
+    tick(3600 * o.min, i => {
+      const t = g.clock;
+      for (const c of g.clusters) { if (!seen.has(c)) { seen.set(c, { t0: t, init: false, target: c.target, fin: null }); created++; } if (c.spawned > c.target) over.push(c.spawned - c.target); }
+      for (const [c, m] of seen) {
+        if (m.fin !== null) { if (c.spawned > m.fin) afterEnd.push(c.spawned - m.fin); continue; } // 종료된 군집이 더 만들었는지 계속 확인
+        if (!g.clusters.includes(c)) { m.fin = c.spawned; m.dur = t - m.t0; (c.spawned >= m.target ? done : other).push(m); }
+      }
+      if (i % 600 === 0) { counts.push(g.clusters.length); totals.push(g.shapes.length); }
+    });
+  }
+  const grown = done.filter(d => !d.init), avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  say('시작 때 만들어진 군집 ' + started + '개 + 이후 새로 만든 군집 ' + created + '개 | 목표를 채우고 종료 ' + done.length + '개 (이 중 처음부터 성장한 군집 ' + grown.length + '개) | 목표 달성 전에 수명·경계·둥지로 종료 ' + other.length + '개');
+  say('성장 시간(처음부터 성장한 군집, 만들어진 뒤 목표 달성까지): 평균 ' + f1(avg(grown.map(d => d.dur))) + '초 | 범위 ' + (grown.length ? f1(Math.min(...grown.map(d => d.dur))) + '~' + f1(Math.max(...grown.map(d => d.dur))) : '-') + '초 (설정 ' + K.growTime[0] + '~' + K.growTime[1] + '초, 화면 안이라 생성이 막히면 더 길어짐)');
+  say('목표를 넘어 생성된 경우 ' + over.length + '건 (0이어야 함) | 종료된 군집이 종료 뒤에 더 만든 도형 ' + afterEnd.length + '건 (0이어야 함)');
+  const mc = counts.length ? counts : [0]; say('군집 수(10초마다): 평균 ' + f1(avg(mc)) + ' | 최소 ' + Math.min(...mc) + ' | 최대 ' + Math.max(...mc) + ' (기대 ' + Math.max(1, Math.floor(Math.min(K.maxCount, MAP.size * MAP.size / K.areaPerCluster) + 0.35)) + ')');
+  say('전체 도형 수(10초마다): 평균 ' + f1(avg(totals)) + ' | 최소 ' + Math.min(...totals) + ' | 최대 ' + Math.max(...totals));
+  rec('clustercheck.over', over.length); rec('clustercheck.afterEnd', afterEnd.length); rec('clustercheck.completed', done.length); rec('clustercheck.other', other.length); rec('clustercheck.growAvg', avg(grown.map(d => d.dur))); rec('clustercheck.total', avg(totals));
 };
 
 S.bodycheck = () => { // 몸통 충돌 물리 측정: 플레이어(레벨 L)가 정지한 대상 쪽으로 3초 동안 계속 전진
