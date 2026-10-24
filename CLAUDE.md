@@ -20,10 +20,11 @@ HTML/CSS/바닐라 JS(Canvas). 외부 에셋과 빌드 도구는 없고, `index.
 - 게임 폴더(`tank-arena`)에서 `node tests/run.js <시나리오[,...]> [--seed N --runs N --min N --set 경로=값 --game 경로 --save 이름 --compare 이름]`. 목록은 `node tests/run.js --list`.
 - 규칙 확인: `rulecheck`, `shapes`, `knockcheck`, `clashcheck`. 봇 AI 확인: `fightcheck`, `memorycheck`, `scorecheck`, `traitcheck`, `buildcheck`. 봇 측정: `aicheck`, `types`, `pop`. 이상 감시: `sanity`. 성능: `perf`.
 - 문자열 `--set` 값은 JSON으로 쓴다(`--set 'botFight.mode="legacy"'`).
-- **시뮬레이션 테스트는 사용자가 하라고 할 때만 실행한다. 필요해 보이면 실행하지 말고 먼저 물어본다.** 코드를 고친 뒤 문법 검사(`npm run check`)는 항상 한다.
+- **코드를 고친 뒤 문법 검사(`npm run check`)는 항상 하고, 변경과 관련된 시뮬레이션 시나리오와 `sanity`는 사용자에게 묻지 않고 알아서 실행해 결과를 보고한다.** 예: 봇 AI 수정이면 `fightcheck` 등, 규칙 수정이면 `rulecheck` 등. 오래 걸리는 `perf` 같은 시나리오는 먼저 묻는다. 실행하지 못했거나 실패한 것은 숨기지 않고 그대로 보고한다.
+- 수정이 끝나면 지정된 브랜치로 푸시하고, PR을 만들어 `main`에 합치는 것까지 사용자가 맡겼다(문법 검사 통과가 조건). 되돌릴 때는 `git revert`를 쓴다.
 
 ## 작업 규칙
-1. 큰 변경 전에는 `backups/` 폴더 대신 git 커밋으로 현재 상태를 남긴다(복원: `git revert` 또는 `git checkout <커밋> -- 파일`). 작업이 끝나면 지정된 브랜치로 푸시하고, PR은 사용자가 요청할 때만 만든다.
+1. 큰 변경 전에는 `backups/` 폴더 대신 git 커밋으로 현재 상태를 남긴다(복원: `git revert` 또는 `git checkout <커밋> -- 파일`). 작업이 끝나면 지정된 브랜치로 푸시하고 PR을 만들어 `main`에 합친다(사용자가 맡김).
 2. 설계는 먼저 말로 설명하고(영향과 위험 포함), 사용자가 "코드짜"라고 하면 구현한다. "수정하지 말고"라고 하면 파일을 바꾸지 않는다.
 3. 규칙에 영향을 주는 변경이면 `docs/build_doc.js`를 고쳐 문서를 다시 만든다. 표시나 개발자 도구 같은 작은 수정은 `docs/PENDING.md`에 모아 두고, 사용자가 요청하거나 파일을 보낼 때 한꺼번에 반영한다.
 4. 문서의 설정 표(9장)와 부록 A는 새 설정을 추가할 때마다 같이 갱신한다. 문서의 7장 이후 표는 `game.js`의 `CFG` 값을 읽어서 만든다.
