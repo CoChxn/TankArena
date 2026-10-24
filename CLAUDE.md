@@ -20,8 +20,12 @@ HTML/CSS/바닐라 JS(Canvas). 외부 에셋과 빌드 도구는 없고, `index.
 - 게임 폴더(`tank-arena`)에서 `node tests/run.js <시나리오[,...]> [--seed N --runs N --min N --set 경로=값 --game 경로 --save 이름 --compare 이름]`. 목록은 `node tests/run.js --list`.
 - 규칙 확인: `rulecheck`, `shapes`, `knockcheck`, `clashcheck`. 봇 AI 확인: `fightcheck`, `memorycheck`, `scorecheck`, `traitcheck`, `buildcheck`. 봇 측정: `aicheck`, `types`, `pop`. 이상 감시: `sanity`. 성능: `perf`.
 - 문자열 `--set` 값은 JSON으로 쓴다(`--set 'botFight.mode="legacy"'`).
-- **코드를 고친 뒤 `npm run check`(문법 검사 + 짧은 `sanity` 약 2초)는 항상 하고, 변경과 관련된 시뮬레이션 시나리오와 `sanity`는 사용자에게 묻지 않고 알아서 실행해 결과를 보고한다.** 예: 봇 AI 수정이면 `fightcheck` 등, 규칙 수정이면 `rulecheck` 등. 오래 걸리는 `perf` 같은 시나리오는 먼저 묻는다. 실행하지 못했거나 실패한 것은 숨기지 않고 그대로 보고한다.
-- 봇 AI·밸런스를 바꾸는 변경은 고치기 전에 `--save 이름`으로 기준 결과를 저장하고(`tests/results/`, 저장소에 커밋), 고친 뒤 `--compare 이름`으로 비교해 좋아졌는지 수치로 보고한다.
+- **코드를 고친 뒤 `npm run check`(문법 검사 + 짧은 `sanity` 약 2초)는 항상 한다.** 그 밖의 시뮬레이션은 변경 크기에 따라 사용자에게 묻지 않고 알아서 돌리고 결과를 보고한다.
+  - **작은 수정**(수치 조정, 표시, 버그 수정, 규칙이 그대로인 변경): 관련 시나리오 1~2개만, 시간은 `--min 5`로 짧게.
+  - **큰 변경**(규칙·봇 AI·밸런스): 변경과 직접 관련된 시나리오만(전부 돌리지 않는다)을 `--min 5`로 `--save`/`--compare`한다. `pop`, `fp`(각각 약 3분)와 `--min 15` 이상의 긴 측정은 값이 애매할 때나 마지막 확인에만 쓰고, 처음부터 돌릴 때는 먼저 묻는다. `perf`도 먼저 묻는다.
+  - 측정은 백그라운드로 돌리고, 기다리는 동안 구현·문서 작업을 병행한다. 한 번에 5분 넘게 기다리는 명령은 쓰지 않고 짧게 나눠 확인한다.
+  - 측정값 차이가 5% 안팎이면 단일 측정의 오차 범위로 보고 개선·악화로 단정하지 않는다. 실행하지 못했거나 실패한 것은 숨기지 않고 그대로 보고한다.
+- 봇 AI·밸런스를 바꾸는 큰 변경은 고치기 전에 `--save 이름`으로 기준 결과를 저장하고(`tests/results/`, 저장소에 커밋), 고친 뒤 `--compare 이름`으로 비교해 좋아졌는지 수치로 보고한다.
 
 ## 작업 규칙
 1. 큰 변경 전에는 `backups/` 폴더 대신 git 커밋으로 현재 상태를 남긴다(복원: `git revert` 또는 `git checkout <커밋> -- 파일`). 작업이 끝나고 `npm run check`와 관련 테스트가 통과하면 지정된 브랜치로 푸시한 뒤 PR 없이 `main`에 바로 합친다(사용자가 맡김). 실패하면 합치지 않고 보고한다. 되돌릴 때는 `git revert`를 쓴다.
