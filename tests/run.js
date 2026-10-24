@@ -24,6 +24,7 @@ const SC = {
   config: ['설정에서 계산되는 값 확인(시뮬레이션 없음)', () => 1],
   shapes: ['총알 vs 도형 발수/관통, 몸통 충돌 피해, 재생 (순간 계산)', () => 2],
   dmgrange: ['총알 한 발이 탱크 한 대에 줄 수 있는 총 피해의 최소/평균/최대(정면 직격, 정지한 대상): 클래스 x 능력치 x 대상 방어', () => 8],
+  shapeflow: ['도형 흐름 측정: 도형이 죽는 속도와 다시 생기는 속도(군집·일반·둥지), 도형 수 추이 (플레이어 정지, 봇만)', o => 5 + o.min * 3],
   bodycheck: ['몸통 충돌 물리 측정: 플레이어가 도형·탱크를 향해 계속 전진할 때 전진 속도, 대상이 밀린 거리, 멈춤 여부', () => 6],
   botspawn: ['봇 스폰 위치 분포(맵 전체 무작위인지)', () => 3],
   autofire: ['사망 시 오토파이어 해제, E 키 동작', () => 1],
@@ -328,6 +329,26 @@ S.dmgrange = () => { // 총알 한 발이 정지한 탱크에 정면으로 맞�
   say('이론 상한(접촉이 총알 체력이 다할 때까지 이어질 때) = 틱당 피해 x 총알 체력 ÷ 대상 방어(Body) = (' + (ub.base + 7 * ub.per) + ') x (' + (up.base + 7 * up.per) + ' x ' + C.bulletHp + ') ÷ ' + bo.base + ' = ' + f1((ub.base + 7 * ub.per) * (up.base + 7 * up.per) * C.bulletHp / bo.base) + ' (기본 Tank 클래스 기준)');
   say('기준 비교(대상 Lv1 Body 0): 0포인트 Lv1 Tank ' + f1(one('tank', 1, {}, 1, 0).d) + ' | Lv45 피해 7포인트만 ' + f1(one('tank', 45, { bDmg: 7 }, 1, 0).d) + ' | 관통 7포인트만 ' + f1(one('tank', 45, { pen: 7 }, 1, 0).d) + ' | 피해+관통 7포인트 ' + f1(one('tank', 45, { bDmg: 7, pen: 7 }, 1, 0).d) + ' | 피해+관통+속도 7포인트 ' + f1(one('tank', 45, { bDmg: 7, pen: 7, bSpeed: 7 }, 1, 0).d));
   rec('dmgrange.min', mn.d); rec('dmgrange.avg', sum / n); rec('dmgrange.max', mx.d);
+};
+
+S.shapeflow = o => { // 도형 종류(군집/일반/둥지)별로 죽는 속도와 생기는 속도, 도형 수 추이를 잼
+  const f1 = x => x.toFixed(1), f2 = x => x.toFixed(2), cat = e => e.nest ? 'nest' : e.cl ? 'cluster' : 'free';
+  say('=== [shapeflow] 도형 흐름 (플레이어 정지·무적, ' + o.runs + '회 x ' + o.min + '분, 봇만 도형을 처치) ===');
+  const tot = { kill: { nest: 0, cluster: 0, free: 0 }, spawn: { nest: 0, cluster: 0, free: 0 }, att: { nest: 0, cluster: 0, free: 0 } }, series = { nest: [], cluster: [], free: [], all: [] }; let secs = 0, peakSpawn = { nest: 0, cluster: 0, free: 0 };
+  for (let r = 0; r < o.runs; r++) {
+    reseed('shapeflow' + r); fresh(); const ok = g.onKill.bind(g), os = g.spawnShape; let win = { nest: 0, cluster: 0, free: 0 }, wi = 0;
+    g.onKill = e => { if (e.s && e.kind !== 'crasher' && e.nest !== undefined) tot.kill[cat(e)]++; return ok(e); };
+    g.spawnShape = function (anywhere, nest, type, cl) { const res = os.call(this, anywhere, nest, type, cl), k = nest ? 'nest' : cl ? 'cluster' : 'free'; tot.att[k]++; if (res !== false) { tot.spawn[k]++; win[k]++; } return res; };
+    tick(3600 * o.min, i => {
+      if (i % 60 === 0) { wi++; for (const k in win) { peakSpawn[k] = Math.max(peakSpawn[k], win[k]); win[k] = 0; } } // 1초 단위 최대 생성 수
+      if (i % 600 === 0) { let n = 0, c = 0, f = 0; for (const s of g.shapes) { if (s.nest) n++; else if (s.cl) c++; else f++; } series.nest.push(n); series.cluster.push(c); series.free.push(f); series.all.push(n + c + f); }
+    });
+    secs += o.min * 60; g.onKill = ok; g.spawnShape = os; delete g.onKill; delete g.spawnShape;
+  }
+  for (const k of ['cluster', 'free', 'nest']) say(({ cluster: '군집', free: '일반', nest: '둥지' })[k].padEnd(3) + ' | 처치 ' + f2(tot.kill[k] / secs) + '/초 | 생성 ' + f2(tot.spawn[k] / secs) + '/초 (시도 ' + f2(tot.att[k] / secs) + '/초) | 1초 최대 생성 ' + peakSpawn[k] + '개 | 평균 개수 ' + f1(series[k].reduce((a, b) => a + b, 0) / series[k].length));
+  const mn = Math.min(...series.all), mx = Math.max(...series.all); say('전체 도형 수(10초마다 측정): 평균 ' + f1(series.all.reduce((a, b) => a + b, 0) / series.all.length) + ' | 최소 ' + mn + ' | 최대 ' + mx);
+  { const L = series.all.length, third = Math.floor(L / 3), tail = series.all.slice(L - third), head = series.all.slice(0, third); const av = a => a.reduce((x, y) => x + y, 0) / a.length; say('처음 1/3 평균 ' + f1(av(head)) + ' → 마지막 1/3 평균 ' + f1(av(tail)) + ' (시작 직후의 영향을 빼고 보려면 마지막 1/3을 봄)'); rec('shapeflow.tail', av(tail)); }
+  for (const k of ['cluster', 'free', 'nest']) { rec('shapeflow.kill.' + k, tot.kill[k] / secs); rec('shapeflow.spawn.' + k, tot.spawn[k] / secs); } rec('shapeflow.total', series.all.reduce((a, b) => a + b, 0) / series.all.length);
 };
 
 S.bodycheck = () => { // 몸통 충돌 물리 측정: 플레이어(레벨 L)가 정지한 대상 쪽으로 3초 동안 계속 전진
