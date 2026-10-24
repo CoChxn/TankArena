@@ -1,0 +1,17 @@
+const noop=()=>{};
+const ctx=new Proxy({}, {get:(t,k)=>k==='measureText'?()=>({width:0}):noop, set:()=>true});
+const els={};
+const el=id=>els[id]||(els[id]={value:'',classList:{add:noop,remove:noop},addEventListener:(n,f)=>{(global.__ev=global.__ev||{})[n]=f},getContext:()=>ctx,set onclick(f){},textContent:''});
+global.document={getElementById:el};
+global.window=global;global.innerWidth=1280;global.innerHeight=720;global.devicePixelRatio=1;
+const L={};global.addEventListener=(n,f)=>{(L[n]=L[n]||[]).push(f)};
+global.requestAnimationFrame=noop;global.setTimeout=noop;
+global.performance={now:()=>Date.now()};
+const src=require('fs').readFileSync('game.js','utf8')+'\n;globalThis.__g=()=>game;globalThis.__C=CFG;globalThis.respawnLevel=respawnLevel;globalThis.inNest=inNest;globalThis.pointsFor=pointsFor;globalThis.TICK=TICK;globalThis.MAP=MAP;globalThis.mapTarget=mapTarget;globalThis.setMapSize=setMapSize;globalThis.Bot=Bot;globalThis.Player=Player;globalThis.ANIMALS=ANIMALS;';
+(0,eval)(src);
+const g=__g(),C=__C;
+g.start();g.input.down=true;
+const step=(n)=>{for(let i=0;i<n;i++){g.update(1/60);g.draw();}};
+g.start();const P=g.player;P.hp=P.maxHp=1e9;P.x=1500;P.y=1500;g.bots=[];g.input.axis=()=>[0,0];
+const t0=Date.now();for(let i=0;i<60*60*5;i++)g.update(1/60);
+console.log('5분(봇',g.bots.length,'마리) 실행 시간',((Date.now()-t0)/1000).toFixed(1)+'초');
