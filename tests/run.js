@@ -408,6 +408,12 @@ S.classcheck = () => { // 전직 규칙 확인과 클래스별 초당 발사 수
     const fw = Q.barrels.filter(b => Math.abs(Math.sin((b.ang || 0) / 2)) < 0.4).length / Q.barrels.length, sps = shots / 10, v = sps * Q.spec.dmg * fw; if (k === 'tank') base = v; rows.push([k, sps, Q.spec.dmg, fw, v, Q.barrels.length]);
   }
   for (const [k, sps, d, fw, v, nb] of rows) say('    ' + k.padEnd(10) + '포신 ' + nb + ' | ' + f1(sps).padStart(5) + '발/초 | 틱당 피해 ' + f2(d).padStart(5) + ' | 정면 ' + f2(fw) + ' | 지표 ' + f2(v / base) + '배');
+  say('[5] 포신별 총알 배율(Tri-Angle): 한 번 발사해 생긴 총알의 피해·관통·수명');
+  { const Q = fresh(); g.shapes = []; Q.setLevel(30); Q.setClass('triangle'); Q.angle = 0; Q.aim = function () {}; g.bullets = []; g.input.down = true; Q.cool = 0; Q.hp = Q.maxHp = 1e9; g.update(1 / 60); g.input.down = false;
+    const bs = g.bullets.filter(b => b.owner === Q); say('    총알 ' + bs.length + '개 (포신 3개 동시 발사 기대)'); chk(bs.length === 3, 'Tri-Angle은 한 번에 3발');
+    const fr = bs.find(b => b.vx > 0 && Math.abs(b.vy) < 1e-6), rr = bs.filter(b => b.vx < 0); chk(!!fr && rr.length === 2, '앞 1발, 뒤 2발');
+    if (fr && rr.length === 2) { const sp = Q.spec; say('    앞: 피해 ' + f2(fr.dmg) + ' 관통 ' + f1(fr.pen0) + ' 수명 ' + f2(fr.life) + ' | 뒤: 피해 ' + f2(rr[0].dmg) + ' 관통 ' + f1(rr[0].pen0) + ' 수명 ' + f2(rr[0].life) + ' (기본 피해 ' + f2(sp.dmg) + ', 수명 ' + f2(sp.life) + ')');
+      chk(Math.abs(fr.dmg - sp.dmg) < 1e-9 && Math.abs(fr.life - sp.life) < 0.05, '앞 총알은 기본값(수명은 발사 직후 한 프레임 경과 오차 0.05초 허용)'); chk(Math.abs(rr[0].dmg - sp.dmg * 0.2) < 1e-9 && Math.abs(rr[0].life - sp.life * 0.5) < 0.05, '뒤 총알은 피해 20%, 수명 50%'); } }
   say(bad ? '확인 결과: 위반 ' + bad + '건' : '확인 결과: 위반 없음'); rec('classcheck.bad', bad);
 };
 

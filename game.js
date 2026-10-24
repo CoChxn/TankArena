@@ -44,7 +44,7 @@ const CFG = {
   classOrder: ['twin', 'sniper', 'machine', 'flank'],
   // 30레벨 전직: 15레벨에서 고른 클래스 -> 고를 수 있는 클래스 목록(diep.io 위키 기준, 드론·트랩·자동 포탑·Smasher 클래스는 제외). 비어 있으면 선택 타일이 없음
   classUpLevel2: 30,
-  classUp30: { twin: ['triple', 'quadtank', 'twinflank'], sniper: ['assassin', 'hunter'], machine: ['destroyer', 'gunner'], flank: ['quadtank', 'twinflank'] },
+  classUp30: { twin: ['triple', 'quadtank', 'twinflank'], sniper: ['assassin', 'hunter'], machine: ['destroyer', 'gunner'], flank: ['triangle', 'quadtank', 'twinflank'] },
   classes: {
     tank:    { n: 'Tank', dmg: 1, pen: 1, speed: 1, reload: 1, fov: 1, recoil: 1, barrels: [{ len: 1.9, w: 0.84 }] },
     // 두 포신이 번갈아 발사(연사 2배), 총알 피해 감소 -> 총 DPS 약 130%
@@ -68,6 +68,9 @@ const CFG = {
     // Quad Tank: 십자 4방향 포신 동시 발사. 위키: 피해 5.25 = 기본의 0.75배, 총알 내구도 75%
     quadtank: { n: 'Quad Tank', c: '#8ccf6a', par: 'flank', dmg: 0.75, pen: 0.75, speed: 1, reloadMul: 1, fov: 1, recoil: 1,
                barrels: [{ len: 1.9, w: 0.84 }, { len: 1.9, w: 0.84, ang: Math.PI / 2 }, { len: 1.9, w: 0.84, ang: Math.PI }, { len: 1.9, w: 0.84, ang: -Math.PI / 2 }] },
+    // Tri-Angle: 앞 포신 1개(보통 총알) + 뒤쪽 양옆으로 벌어진 포신 2개. 위키: 뒤 포신 총알은 위력 20%, 수명은 약 절반(1.5초). 뒤 포신의 각도·길이·너비와 관통 배율은 **추정**(뒤 포신 반동이 몸을 앞으로 밀어 줌). 포신별 dmg/pen/life = 그 포신 총알의 피해·관통·수명 배율
+    triangle: { n: 'Tri-Angle', c: '#5cc9a7', par: 'flank', dmg: 1, pen: 1, speed: 1, reloadMul: 1, fov: 1, recoil: 1,
+               barrels: [{ len: 1.9, w: 0.84 }, { len: 1.6, w: 0.7, ang: Math.PI - 0.5, dmg: 0.2, life: 0.5 }, { len: 1.6, w: 0.7, ang: Math.PI + 0.5, dmg: 0.2, life: 0.5 }] },
     // Assassin: 더 긴 포신의 저격형. 위키: 총알 속도 기본의 1.5배, 재장전 30틱(포인트마다 -2, -2, -3, -2, -1, -2, -2틱), 시야 넓음. 피해·관통 1.0과 시야 0.75, 반동은 Sniper와 같게 둔 **추정**
     assassin: { n: 'Assassin', c: '#e08a4a', par: 'sniper', dmg: 1, pen: 1, speed: 1.5, rt: [30, 28, 26, 23, 21, 20, 18, 16], fov: 0.75, recoil: 0.25, barrels: [{ len: 2.5, w: 0.7 }] },
     // Hunter: 길고 가는 포신 + 짧고 굵은 포신이 겹쳐 동시 발사. 위키: 피해 5.25 = 기본의 0.75배(Sniper보다 -25%), 총알 속도 1.4배, 재장전 38틱. 재장전 표는 Sniper 표 x 38/23을 반올림한 **추정**
@@ -843,7 +846,7 @@ class Game {
     const a0 = o.angle + (b.ang || 0), tip = b.len * o.r * 0.92, off = (b.off || 0) * o.r;
     const a = a0 + (sp.spread ? rand(-sp.spread, sp.spread) : 0), c = Math.cos(a), s = Math.sin(a);
     if (this.bullets.length > 500) this.bullets.shift();
-    this.bullets.push({ x: o.x + Math.cos(a0) * tip - Math.sin(a0) * off, y: o.y + Math.sin(a0) * tip + Math.cos(a0) * off, vx: c * sp.bSpeed, vy: s * sp.bSpeed, v0: sp.bSpeed, r: sp.size * (b.size || 1), dmg: sp.dmg, pen: sp.pen, pen0: sp.pen, life: sp.life, owner: o, col: o.col, out: o.out, hits: [] });
+    this.bullets.push({ x: o.x + Math.cos(a0) * tip - Math.sin(a0) * off, y: o.y + Math.sin(a0) * tip + Math.cos(a0) * off, vx: c * sp.bSpeed, vy: s * sp.bSpeed, v0: sp.bSpeed, r: sp.size * (b.size || 1), dmg: sp.dmg * (b.dmg || 1), pen: sp.pen * (b.pen || 1), pen0: sp.pen * (b.pen || 1), life: sp.life * (b.life || 1), owner: o, col: o.col, out: o.out, hits: [] });
     if (o.kicks) o.kicks[bi] = o.r * 0.3; else o.kick = o.r * 0.3;
     return a;
   }
