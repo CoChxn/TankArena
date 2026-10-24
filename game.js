@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = '750e571'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
+const BUILD_ID = '0153a78'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
 
 const CFG = {
   world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
@@ -60,24 +60,24 @@ const CFG = {
     flank:   { n: 'Flank Guard', c: '#7ad98a', dmg: 1, pen: 1, speed: 1, reload: 1, fov: 1, recoil: 1,
                barrels: [{ len: 1.9, w: 0.84 }, { len: 1.35, w: 0.84, ang: Math.PI }] },
     // ---- 30레벨 클래스 (par = 이전 클래스, 봇의 거리·능력치 투자 값이 없을 때 이 값을 따름). reloadMul = 재장전 배율. 수치 출처: 위키(피해·관통 배율 일부) + 추정(재장전·피해 등 DPS를 기존 클래스에 맞춤) ----
-    // Triple Shot: 포신 3개(앞 + 좌우로 벌어짐) 동시 발사. 위키: 피해 4.9 = 기본의 0.7배, 관통은 Twin의 약 1.11배(0.9 -> 1.0). 재장전은 추정(1대1 결투 승률 `classduel`로 맞춤: 1.8 -> 1.0, 이전 승률 16% -> 약 48%)
-    triple:  { n: 'Triple Shot', c: '#5fb5e8', par: 'twin', dmg: 0.7, pen: 1, speed: 1, reloadMul: 1, fov: 1, recoil: 0.3,
+    // Triple Shot: 포신 3개(앞 + 좌우로 벌어짐) 동시 발사. 위키: 피해 4.9 = 기본의 0.7배, 관통은 Twin의 약 1.11배(0.9 -> 1.0). 재장전은 추정(정면 지표를 Twin과 비슷한 약 1.2로 맞춤)
+    triple:  { n: 'Triple Shot', c: '#5fb5e8', par: 'twin', dmg: 0.7, pen: 1, speed: 1, reloadMul: 1.8, fov: 1, recoil: 0.3,
                barrels: [{ len: 1.9, w: 0.84, ang: -0.5, size: 0.85 }, { len: 1.9, w: 0.84, size: 0.85 }, { len: 1.9, w: 0.84, ang: 0.5, size: 0.85 }] },
     // Twin Flank: 앞 2 + 뒤 2, 번갈아 발사(앞뒤 반동이 상쇄). 위키: Twin보다 피해가 더 낮음(0.55는 추정, 앞쪽 지표가 기본 탱크와 비슷하도록)
     twinflank: { n: 'Twin Flank', c: '#6cd0b0', par: 'twin', dmg: 0.55, pen: 0.9, speed: 1, reloadMul: 1, fov: 1, alt: true, recoil: 0.25,
                barrels: [{ len: 1.9, w: 0.84, off: -0.52, size: 0.85 }, { len: 1.9, w: 0.84, off: -0.52, ang: Math.PI, size: 0.85 }, { len: 1.9, w: 0.84, off: 0.52, size: 0.85 }, { len: 1.9, w: 0.84, off: 0.52, ang: Math.PI, size: 0.85 }] },
-    // Quad Tank: 십자 4방향 포신 동시 발사. 위키: 피해 5.25 = 기본의 0.75배, 총알 내구도 75%. 재장전 x0.5(Tank 대비 2배 빠름)는 추정(`classduel`로 맞춤, 정면 포신이 1/4뿐이라 1.0이면 승률 19%)
-    quadtank: { n: 'Quad Tank', c: '#8ccf6a', par: 'flank', dmg: 0.75, pen: 0.75, speed: 1, reloadMul: 0.5, fov: 1, recoil: 1,
+    // Quad Tank: 십자 4방향 포신 동시 발사. 위키: 피해 5.25 = 기본의 0.75배, 총알 내구도 75%
+    quadtank: { n: 'Quad Tank', c: '#8ccf6a', par: 'flank', dmg: 0.75, pen: 0.75, speed: 1, reloadMul: 1, fov: 1, recoil: 1,
                barrels: [{ len: 1.9, w: 0.84 }, { len: 1.9, w: 0.84, ang: Math.PI / 2 }, { len: 1.9, w: 0.84, ang: Math.PI }, { len: 1.9, w: 0.84, ang: -Math.PI / 2 }] },
     // Tri-Angle: 앞 포신 1개(보통 총알) + 뒤쪽 양옆으로 벌어진 포신 2개. 위키: 뒤 포신 총알은 위력 20%, 수명은 약 절반(1.5초). 뒤 포신의 각도·길이·너비와 관통 배율은 **추정**(뒤 포신 반동이 몸을 앞으로 밀어 줌). 포신별 dmg/pen/life = 그 포신 총알의 피해·관통·수명 배율
     triangle: { n: 'Tri-Angle', c: '#5cc9a7', par: 'flank', dmg: 1, pen: 1, speed: 1, reloadMul: 1, fov: 1, recoil: 1,
                barrels: [{ len: 1.9, w: 0.84 }, { len: 1.6, w: 0.7, ang: Math.PI - 0.5, dmg: 0.2, life: 0.5 }, { len: 1.6, w: 0.7, ang: Math.PI + 0.5, dmg: 0.2, life: 0.5 }] },
-    // Assassin: 더 긴 포신의 저격형. 위키: 총알 속도 기본의 1.5배, 재장전 30틱(포인트마다 -2, -2, -3, -2, -1, -2, -2틱), 시야 넓음. 피해 1.25(`classduel`로 맞춤, 1.0이면 승률 약 40%), 한 발 상한 배율 rangeMax 0.8(최대 피해를 다른 클래스와 비슷하게), 관통 1.0, 시야 0.75, 반동은 Sniper와 같게 둔 **추정**
-    assassin: { n: 'Assassin', c: '#e08a4a', par: 'sniper', dmg: 1.25, pen: 1, speed: 1.5, rt: [30, 28, 26, 23, 21, 20, 18, 16], fov: 0.75, recoil: 0.25, rangeMax: 0.8, barrels: [{ len: 2.5, w: 0.7 }] },
+    // Assassin: 더 긴 포신의 저격형. 위키: 총알 속도 기본의 1.5배, 재장전 30틱(포인트마다 -2, -2, -3, -2, -1, -2, -2틱), 시야 넓음. 피해·관통 1.0과 시야 0.75, 반동은 Sniper와 같게 둔 **추정**
+    assassin: { n: 'Assassin', c: '#e08a4a', par: 'sniper', dmg: 1, pen: 1, speed: 1.5, rt: [30, 28, 26, 23, 21, 20, 18, 16], fov: 0.75, recoil: 0.25, barrels: [{ len: 2.5, w: 0.7 }] },
     // Hunter: 길고 가는 포신 + 짧고 굵은 포신이 겹쳐 동시 발사. 위키: 피해 5.25 = 기본의 0.75배(Sniper보다 -25%), 총알 속도 1.4배, 재장전 38틱. 재장전 표는 Sniper 표 x 38/23을 반올림한 **추정**
     hunter:  { n: 'Hunter', c: '#f0c070', par: 'sniper', dmg: 0.75, pen: 1, speed: 1.4, rt: [38, 35, 31, 30, 26, 25, 23, 20], fov: 0.85, recoil: 0.25, barrels: [{ len: 2.2, w: 0.6, size: 0.75 }, { len: 1.7, w: 0.95 }] },
-    // Destroyer: 크고 느린 총알(크기 2배, 속도 0.7배), 높은 피해(위키: Annihilator가 21 = 3배이고 Destroyer와 같음), 매우 느린 재장전(Tank x2.6 = 39틱, 추정: x4(60틱)이면 `classduel` 승률 약 30%), 반동 큼(추정), rangeMin 0.4, rangeMax 0.33 = 한 발의 하한·상한을 다른 클래스(최대 약 110)와 비슷하게(추정)
-    destroyer: { n: 'Destroyer', c: '#d4a63c', par: 'machine', dmg: 3, pen: 1, speed: 0.7, reloadMul: 2.6, fov: 1, recoil: 2.5, rangeMin: 0.4, rangeMax: 0.33, barrels: [{ len: 1.9, w: 1.3, size: 2 }] },
+    // Destroyer: 크고 느린 총알(크기 2배, 속도 0.7배), 높은 피해(위키: Annihilator가 21 = 3배이고 Destroyer와 같음), 매우 느린 재장전(Tank x4 = 60틱, 추정), 반동 큼(추정), rangeMin 0.4, rangeMax 0.33 = 한 발의 하한·상한을 다른 클래스(최대 약 110)와 비슷하게(추정)
+    destroyer: { n: 'Destroyer', c: '#d4a63c', par: 'machine', dmg: 3, pen: 1, speed: 0.7, reloadMul: 4, fov: 1, recoil: 2.5, rangeMin: 0.4, rangeMax: 0.33, barrels: [{ len: 1.9, w: 1.3, size: 2 }] },
     // Gunner: 작은 포신 4개가 번갈아 아주 빠르게 발사하는 약한 총알(위키: 작고 약한 총알, 재장전 크게 증가). 피해 0.2, 재장전 Machine Gun 표 x1.15, 퍼짐은 **추정**(정면 지표를 Machine Gun의 약 1.1배로 맞춤)
     gunner:  { n: 'Gunner', c: '#f0e08a', par: 'machine', dmg: 0.2, pen: 1, speed: 1, reloadMul: 1.15, rt: [8, 7, 7, 6, 6, 5, 5, 4], fov: 1, alt: true, spread: 0.14, recoil: 0.4,
                barrels: [{ len: 1.9, w: 0.42, off: -0.75, size: 0.55 }, { len: 1.9, w: 0.42, off: 0.25, size: 0.55 }, { len: 1.9, w: 0.42, off: -0.25, size: 0.55 }, { len: 1.9, w: 0.42, off: 0.75, size: 0.55 }] },
