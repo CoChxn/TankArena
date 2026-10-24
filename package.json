@@ -1,0 +1,10 @@
+{
+  "name": "tank-arena",
+  "private": true,
+  "scripts": {
+    "check": "node --check game.js && node --check tests/run.js && node --check docs/build_doc.js"
+  },
+  "dependencies": {
+    "docx": "*"
+  }
+}
