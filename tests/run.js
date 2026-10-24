@@ -23,6 +23,7 @@ const O = n => ({ runs: num(opt.runs, (DEF[n] || {}).runs || 1), min: num(opt.mi
 const SC = {
   config: ['설정에서 계산되는 값 확인(시뮬레이션 없음)', () => 1],
   shapes: ['총알 vs 도형 발수/관통, 몸통 충돌 피해, 재생 (순간 계산)', () => 2],
+  dmgrange: ['총알 한 발이 탱크 한 대에 줄 수 있는 총 피해의 최소/평균/최대(정면 직격, 정지한 대상): 클래스 x 능력치 x 대상 방어', () => 8],
   bodycheck: ['몸통 충돌 물리 측정: 플레이어가 도형·탱크를 향해 계속 전진할 때 전진 속도, 대상이 밀린 거리, 멈춤 여부', () => 6],
   botspawn: ['봇 스폰 위치 분포(맵 전체 무작위인지)', () => 3],
   autofire: ['사망 시 오토파이어 해제, E 키 동작', () => 1],
@@ -76,11 +77,11 @@ const marker = "game = new Game(document.getElementById('c'));";
 if (!src.includes(marker)) { console.error('game.js에서 "' + marker + '" 줄을 찾지 못했습니다.'); process.exit(1); }
 const overrides = opt.sets.map(s => { const m = /^([A-Za-z_][\w.]*)=(.+)$/.exec(s || ''); if (!m) { console.error('--set 형식: 경로=값 (예: bots.base=12)'); process.exit(1); } let v; try { v = JSON.parse(m[2]); } catch (e) { v = m[2]; } return 'CFG.' + m[1] + ' = ' + JSON.stringify(v) + ';'; }).join('\n');
 src = src.replace(marker, overrides + '\n' + marker) + '\n;globalThis.__x = { g: game, C: CFG, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player, ANIMALS, TICK };';
-let g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, Bot, Player;
+let g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player;
 const srcTemplate = src; // 로드 전의 설정 적용본(시나리오마다 새로 평가하기 위해 보관)
 function boot() { // 게임을 새로 만들고 참조를 갱신 (시나리오 사이에 월드가 섞이지 않게)
   global.__L = {}; seedBoot(); (0, eval)(srcTemplate);
-  ({ g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, Bot, Player } = global.__x);
+  ({ g, C, MAP, mapTarget, setMapSize, respawnLevel, inNest, pointsFor, Bot, Player } = global.__x);
   if (opt.nosep) { g.separateShapes = () => {}; g.shapeFree = () => true; } // 성능 비교용: 도형 겹침 방지(분리 + 생성 시 검사) 끄기
 }
 function seedBoot() { if (opt.seed !== undefined) seedRand(num(opt.seed, 1)); }
@@ -290,6 +291,38 @@ S.knockcheck = () => {
   say('비껴 맞을 때 총알의 꺾인 각도(도, 0이 직진): 대상 반지름의 50% 어긋나게 쏨, 최대 총알 / 생존 여부');
   for (const [k, n] of [['square', '사각형'], ['pentagon', '오각형'], ['hexagon', '육각형']]) { const r1 = shoot(() => { const sh = mkShape(k, cx, cx); g.shapes = [sh]; return sh; }, 50, 28, 0.5); say('  ' + n.padEnd(6) + (r1.ang === null ? '총알 소멸' : r1.ang.toFixed(1) + '도') + (r1.surv ? '' : '')); }
   say('(기대: 가벼운 대상일수록 속도가 크고 무거운 육각형·알파는 거의 안 움직임, 정면 사격은 각도 0, 비껴 맞으면 대상 중심 반대쪽(음수)으로 꺾임)');
+};
+
+S.dmgrange = () => { // 총알 한 발이 정지한 탱크에 정면으로 맞아 주는 총 피해(대상 체력 감소량) 측정. 대상은 무적이 아니고 체력이 매우 큼
+  const cx = C.world / 2, f1 = x => x.toFixed(1), f0 = x => Math.round(x);
+  const one = (cls, lvA, upA, lvT, bodyT) => {
+    const A = new Player(); A.setLevel(lvA); A.setClass(cls); Object.assign(A.up, upA); A.recalc();
+    const T = new Bot(cx, cx, lvT, 'T'); T.up.body = bodyT; T.recalc(); T.hp = T.maxHp = 1e12; T.invT = 0; T.idleT = 1e9; T.vx = T.vy = 0;
+    fresh(); g.bots = [T]; g.shapes = []; g.crashers = []; const sp = A.spec, br = A.barrels[0], r = sp.size * (br.size || 1), tx = cx - T.r - 100;
+    g.bullets = [{ x: tx, y: cx, vx: sp.bSpeed, vy: 0, v0: sp.bSpeed, r, dmg: sp.dmg, pen: sp.pen, pen0: sp.pen, life: 5, owner: A, col: '#fff', out: '#000', hits: [] }];
+    const hp0 = T.hp; for (let i = 0; i < 240 && g.bullets.length; i++) { g.updateBullets(1 / 60); if (g.bullets[0] && g.bullets[0].x > cx + 400) break; }
+    return { d: hp0 - T.hp, sp, ticks: sp.dmg ? (hp0 - T.hp) / sp.dmg : 0 };
+  };
+  const classes = Object.keys(C.classes), pts = [0, 3, 7], bodies = [0, 3, 7], lv = [1, 15, 45];
+  let n = 0, sum = 0, mn = { d: 1e9 }, mx = { d: -1 }; const byCls = {}, rows = [];
+  for (const cls of classes) for (const lA of lv) for (const bd of pts) for (const pn of pts) for (const bs of pts) for (const bt of bodies) for (const lT of lv) {
+    if (bd + pn + bs > pointsFor(lA) || bt > pointsFor(lT)) continue; /* 그 레벨에서 가질 수 있는 포인트만 */
+    const r = one(cls, lA, { bDmg: bd, pen: pn, bSpeed: bs }, lT, bt), rec0 = { d: r.d, cls, lA, bd, pn, bs, bt, lT, dmg: r.sp.dmg, pen: r.sp.pen, v: r.sp.bSpeed };
+    n++; sum += r.d; (byCls[cls] = byCls[cls] || []).push(r.d); if (r.d < mn.d) mn = rec0; if (r.d > mx.d) mx = rec0; rows.push(rec0);
+  }
+  say('=== [dmgrange] 총알 한 발의 총 피해(정지한 탱크에 정면 직격) | 조합 ' + n + '개: 클래스 5 x 공격자 레벨 {1,15,45} x Bullet Damage·Penetration·Bullet Speed 포인트 {0,3,7}(합이 그 레벨의 포인트 이하) x 대상 Body Damage 포인트 {0,3,7}(그 레벨의 포인트 이하) x 대상 레벨 {1,15,45} ===');
+  const show = (t, r) => say(t + ' ' + f1(r.d) + ' | ' + r.cls + ' 공격자 Lv' + r.lA + ' (피해 포인트 ' + r.bd + ', 관통 ' + r.pn + ', 속도 ' + r.bs + ') → 대상 Lv' + r.lT + ' (Body ' + r.bt + ') | 틱당 피해 ' + f1(r.dmg) + ', 총알 체력 ' + f1(r.pen) + ', 속도 ' + f0(r.v));
+  show('최소', mn); show('최대', mx); say('평균(조합 평균) ' + f1(sum / n));
+  const sorted = rows.map(r => r.d).sort((a, b) => a - b), q = p => sorted[Math.floor((sorted.length - 1) * p)]; say('분위수: 5% ' + f1(q(0.05)) + ' | 25% ' + f1(q(0.25)) + ' | 중앙값 ' + f1(q(0.5)) + ' | 75% ' + f1(q(0.75)) + ' | 95% ' + f1(q(0.95)) + ' | 최대/최소 ' + f1(mx.d / mn.d) + '배');
+  for (const c of classes) { const a = byCls[c]; say('  ' + c.padEnd(8) + ' 최소 ' + f1(Math.min(...a)) + ' | 평균 ' + f1(a.reduce((x, y) => x + y, 0) / a.length) + ' | 최대 ' + f1(Math.max(...a))); }
+  const hpT = r => 50 + 2 * (r.lT - 1), one1 = rows.filter(r => r.d >= hpT(r)); // 대상 최대 체력 = 50 + 2 x (레벨 - 1) (Max Health 포인트 0 가정, 가장 약한 경우)
+  say('한 발에 대상 최대 체력(Max Health 0포인트)을 넘는 조합: ' + one1.length + '/' + n + ' (' + f1(100 * one1.length / n) + '%), 대상이 Lv1인 경우만: ' + rows.filter(r => r.lT === 1 && r.d >= 50).length + '/' + rows.filter(r => r.lT === 1).length);
+  for (const cap of [40, 60, 80, 100, 120]) { const cs = rows.map(r => Math.min(r.d, cap)); say('  최대 피해 ' + cap + '로 제한하면: 평균 ' + f1(cs.reduce((x, y) => x + y, 0) / n) + ' (' + f1(100 * (1 - cs.reduce((x, y) => x + y, 0) / sum)) + '% 감소), 영향받는 조합 ' + f1(100 * rows.filter(r => r.d > cap).length / n) + '%, 최대/최소 ' + f1(cap / mn.d) + '배'); }
+  for (const T of [3, 4, 5, 6]) { const cs = rows.map(r => Math.min(r.d, r.dmg * T)), mx2 = Math.max(...cs), mn2 = Math.min(...cs); say('  한 대상에 주는 접촉 틱을 ' + T + '틱으로 제한하면: 최소 ' + f1(mn2) + ' | 평균 ' + f1(cs.reduce((x, y) => x + y, 0) / n) + ' (' + f1(100 * (1 - cs.reduce((x, y) => x + y, 0) / sum)) + '% 감소) | 최대 ' + f1(mx2) + ', 영향받는 조합 ' + f1(100 * rows.filter(r => r.d > r.dmg * T + 1e-6).length / n) + '%, 최대/최소 ' + f1(mx2 / mn2) + '배'); }
+  const A0 = new Player(); const ub = C.stats.find(x => x.k === 'bDmg'), up = C.stats.find(x => x.k === 'pen'), bo = C.stats.find(x => x.k === 'body');
+  say('이론 상한(접촉이 총알 체력이 다할 때까지 이어질 때) = 틱당 피해 x 총알 체력 ÷ 대상 방어(Body) = (' + (ub.base + 7 * ub.per) + ') x (' + (up.base + 7 * up.per) + ' x ' + C.bulletHp + ') ÷ ' + bo.base + ' = ' + f1((ub.base + 7 * ub.per) * (up.base + 7 * up.per) * C.bulletHp / bo.base) + ' (기본 Tank 클래스 기준)');
+  say('기준 비교(대상 Lv1 Body 0): 0포인트 Lv1 Tank ' + f1(one('tank', 1, {}, 1, 0).d) + ' | Lv45 피해 7포인트만 ' + f1(one('tank', 45, { bDmg: 7 }, 1, 0).d) + ' | 관통 7포인트만 ' + f1(one('tank', 45, { pen: 7 }, 1, 0).d) + ' | 피해+관통 7포인트 ' + f1(one('tank', 45, { bDmg: 7, pen: 7 }, 1, 0).d) + ' | 피해+관통+속도 7포인트 ' + f1(one('tank', 45, { bDmg: 7, pen: 7, bSpeed: 7 }, 1, 0).d));
+  rec('dmgrange.min', mn.d); rec('dmgrange.avg', sum / n); rec('dmgrange.max', mx.d);
 };
 
 S.bodycheck = () => { // 몸통 충돌 물리 측정: 플레이어(레벨 L)가 정지한 대상 쪽으로 3초 동안 계속 전진
