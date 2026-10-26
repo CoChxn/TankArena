@@ -233,22 +233,22 @@ add(H2('4.5 클래스 (15레벨과 30레벨에서 선택)'));
 add(P('기본 클래스는 Tank이고 15레벨(`classUpLevel`)에 한 번 4개 중 하나를 고르고, 30레벨(`classUpLevel2`)에 한 번 더 고를 수 있습니다(선택은 좌상단 타일 클릭, 키보드 단축키 없음). 30레벨 선택지는 15레벨에서 고른 클래스에 따라 달라지며 `CFG.classUp30`에 있습니다. 배율은 기본 Tank 기준입니다. 레벨 45 업그레이드 트리와 드론·트랩·자동 포탑·Smasher 클래스는 아직 없습니다(11장).'));
 {
   const rtOf = k => CL[k].rt || TANK_RT;
-  const rows = Object.keys(CL).map(k => { const c = CL[k]; return [c.n, 'x' + c.dmg, 'x' + c.pen, 'x' + c.speed, `${rtOf(k)[0]}→${rtOf(k)[7]}틱${c.reloadMul ? ' x' + c.reloadMul : ''}`, 'x' + c.fov, 'x' + c.recoil]; });
-  add(...T(['클래스', '피해', '관통(총알 체력)', '총알 속도', '재장전(0→7포인트)', '시야 배율', '반동'], rows, [1900, 1000, 1500, 1300, 2000, 1000, 938], { size: 17, align: Array(7).fill(CT) }));
+  const rows = Object.keys(CL).map(k => { const c = CL[k]; return [c.n, 'x' + c.dmg, 'x' + c.pen, 'x' + c.speed, `${rtOf(k)[0]}→${rtOf(k)[7]}틱${c.reloadMul ? ' x' + c.reloadMul : ''}`, 'x' + c.fov, CFG.recoilMode === 'diep' ? c.barrels.map(b => b.rec != null ? b.rec : 1).join(' / ') : 'x' + c.recoil]; });
+  add(...T(['클래스', '피해', '관통(총알 체력)', '총알 속도', '재장전(0→7포인트)', '시야 배율', CFG.recoilMode === 'diep' ? '포신 반동(rec)' : '반동'], rows, [1900, 1000, 1500, 1300, 2000, 1000, 938], { size: 17, align: Array(7).fill(CT) }));
 }
 add(...T(['클래스', '포신과 특징'], [
   ['Tank', '포신 1개(길이 1.9, 너비 0.84, 탱크 반지름 기준). 가장 단순한 기준 클래스.'],
-  ['Twin', '포신 2개(길이 1.9, 각 너비 0.84, 좌우 ±0.52 오프셋)가 **번갈아** 발사(재장전/2 간격). 총알 크기 0.85배. 연사 2배에 피해 0.65배, 관통 0.9배라 DPS 약 130%. 반동 0.25배.'],
-  ['Sniper', '긴 포신(2.2). 총알 속도 1.4배, 재장전이 느리고(23→12틱), 시야가 넓음(0.85). 반동 0.25배.'],
-  ['Machine Gun', '사다리꼴 포신(길이 1.9, 밑동 0.84에서 끝 1.47로 넓어짐). 재장전이 약 2배 빠르고(8→4틱), 피해 0.7배, 총알이 ±0.16라디안(약 ±9.2도) 퍼짐, 총알 크기 0.9배. 반동 0.4배.'],
+  ['Twin', '포신 2개(길이 1.9, 각 너비 0.84, 좌우 ±0.52 오프셋)가 **번갈아** 발사(재장전/2 간격). 총알 크기 0.85배. 연사 2배에 피해 0.65배, 관통 0.9배라 DPS 약 130%. 포신 반동 0.75(diep.io 값).'],
+  ['Sniper', '긴 포신(2.2). 총알 속도 1.4배, 재장전이 느리고(23→12틱), 시야가 넓음(0.85). 포신 반동 3(diep.io 값, Tank의 3배라 쏠 때마다 뚜렷이 밀림).'],
+  ['Machine Gun', '사다리꼴 포신(길이 1.9, 밑동 0.84에서 끝 1.47로 넓어짐). 재장전이 약 2배 빠르고(8→4틱), 피해 0.7배, 총알이 ±0.16라디안(약 ±9.2도) 퍼짐, 총알 크기 0.9배. 포신 반동 1(재장전이 빨라 시간당 반동은 Tank의 약 2배).'],
   ['Flank Guard', '앞 포신(1.9) + 뒤 포신(1.35, 180도 회전)이 **동시에** 발사. 피해 100%. 앞뒤 반동이 상쇄되어 정지한 채로 쏠 수 있음.'],
   ['Triple Shot (30레벨)', '포신 3개(앞 + 좌우 ±0.5라디안)가 동시에 발사. 총알 크기 0.85배. 위키 기준: 피해 0.7배, 관통은 Twin보다 약 11% 높음(1.0). 재장전 x1.8은 **추정**(앞쪽 지표를 Twin과 비슷하게 맞춤).'],
   ['Twin Flank (30레벨)', '앞 2 + 뒤 2 포신이 번갈아 발사(앞뒤 반동 상쇄). 위키: Twin보다 피해가 더 낮음, 피해 0.55는 **추정**(앞쪽 지표가 Tank와 비슷하도록).'],
   ['Quad Tank (30레벨)', '십자 4방향 포신이 동시에 발사. 위키: 피해 5.25(= 기본의 0.75배), 총알 내구도 75%.'],
-  ['Tri-Angle (30레벨)', '앞 포신 1개(보통 총알) + 뒤쪽 양옆(180도 ± 0.5라디안)으로 벌어진 포신 2개가 동시에 발사. 위키: 뒤 포신 총알은 위력 20%, 수명 약 절반(1.5초). 포신별 `dmg`·`pen`·`life` 배율(뒤 포신 0.2·1·0.5)을 새로 지원하며, 뒤 포신의 각도·길이·너비는 **추정**. 뒤로 쏘는 반동이 몸을 앞으로 밀어 줌.'],
+  ['Tri-Angle (30레벨)', '앞 포신 1개(보통 총알) + 뒤쪽 양옆(180도 ± 0.5라디안)으로 벌어진 포신 2개가 동시에 발사. 위키: 뒤 포신 총알은 위력 20%, 수명 약 절반(1.5초). 포신별 `dmg`·`pen`·`life` 배율(뒤 포신 0.2·1·0.5)을 새로 지원하며, 뒤 포신의 각도·길이·너비는 **추정**. 포신 반동은 앞 0.2, 뒤 2.5 × 2(diep.io 값)라 뒤로 쏘는 반동이 몸을 앞으로 밀어 줌(추진).'],
   ['Assassin (30레벨)', 'Sniper보다 긴 포신(2.5). 위키: 총알 속도 1.5배, 재장전 30틱(포인트마다 -2, -2, -3, -2, -1, -2, -2틱). 시야 0.75, 피해·관통 1.0은 **추정**.'],
   ['Hunter (30레벨)', '길고 가는 포신(2.2, 너비 0.6) + 짧고 굵은 포신(1.7, 너비 0.95)이 동시에 발사해 한 번에 2발. 위키: 피해 0.75배(5.25), 총알 속도 1.4배, 재장전 38틱. 재장전 표는 Sniper 표 x 38/23의 반올림으로 **추정**.'],
-  ['Destroyer (30레벨)', '굵은 포신 1개(너비 1.3), 총알 크기 2배, 총알 속도 0.7배, 피해 3배(위키 기준 Annihilator가 21 = 3배이며 Destroyer와 같음). 재장전 Tank x4(60틱), 반동 2.5배, 한 발의 하한·상한 배율 0.4·0.33은 모두 **추정**(상한이 다른 클래스와 비슷하도록).'],
+  ['Destroyer (30레벨)', '굵은 포신 1개(너비 1.3), 총알 크기 2배, 총알 속도 0.7배, 피해 3배(위키 기준 Annihilator가 21 = 3배이며 Destroyer와 같음). 재장전 Tank x4(60틱), 포신 반동 15(diep.io 값, 한 발에 반지름의 약 4.5배 밀림), 한 발의 하한·상한 배율 0.4·0.33은 모두 **추정**(상한이 다른 클래스와 비슷하도록).'],
   ['Gunner (30레벨)', '가는 포신 4개(너비 0.42, 총알 크기 0.55배)가 번갈아 발사. 피해 0.2배, 재장전 Machine Gun 표 x1.15, 탄 퍼짐 ±0.14라디안. 위키는 "작고 약한 총알, 재장전 크게 증가"만 있어 수치는 모두 **추정**(정면 지표를 Machine Gun의 약 1.1배로 맞춤).'],
 ], [1900, W - 1900]));
 add(H3('클래스 밸런스 측정 (classduel)'));
@@ -265,9 +265,17 @@ add(...BUL([
   `**총알 생성:** 포신 끝(길이의 92%)에서 발사 방향으로 생성됩니다. 총알 크기 = 8 × 1.01^(레벨−1) × 포신별 배율 × ${CFG.bulletSizeMul}(bulletSizeMul). 동시에 존재하는 총알은 최대 500개이고, 넘으면 가장 오래된 것을 지웁니다.`,
   `**지속시간:** 1.9초 × ${CFG.bulletLife} = **${f2(1.9 * CFG.bulletLife)}초**. 사거리 = 총알 속도 × 지속시간(Tank 0포인트 약 ${n0(480 * CFG.bulletSpeedMul * 1.9 * CFG.bulletLife)}px).`,
   '**총알 체력:** (2 + 1.5 × 포인트) × 4 × 클래스 관통 배율. 예) 관통 0포인트 8, 3포인트 26, 7포인트 50.',
-  '**반동:** 쏜 방향의 반대로 밀립니다(운동량 보존). 아래 식으로 계산하고 두 단계 지연(시상수 0.04초, 0.07초)을 거쳐 부드럽게 전달합니다.',
+  `**반동:** 쏜 방향(탄 퍼짐 포함)의 반대로 밀립니다. 반동 방식은 \`recoilMode\`(지금 \`${CFG.recoilMode}\`)이고, 아래 식으로 계산한 속도를 두 단계 지연(시상수 0.04초, 0.07초)을 거쳐 부드럽게 전달합니다(지연은 밀리는 총 거리를 바꾸지 않음).`,
 ]));
-add(...FML([`반동 속도 = min(${CFG.recoilMax}, ${CFG.recoilK} × ${CFG.recoilMul} × 클래스 반동 × (총알 크기 ÷ 탱크 반지름)² × √(총알 속도 × ${CFG.recoilV}))`, `${CFG.recoilMul}는 모든 레벨에 같은 반동 보정(50%)입니다. 레벨에 따른 보정은 없습니다. 식의 총알 크기와 속도는 기본 배율(크기 ×${CFG.bulletSizeMul}, 속도 ×${CFG.bulletSpeedMul})을 곱하기 전의 값을 써서, 이 배율을 바꿔도 반동은 달라지지 않습니다(diep.io에서 반동은 클래스별 숨은 배율).`]));
+add(H3("반동 방식 'diep' (현재 기본)"));
+add(...FML([`반동 속도(px/초) = ${CFG.recoilPer}(recoilPer) × 포신 반동 rec${CFG.recoilLevelComp ? ' × (1.015 ÷ 1.01)^(레벨−1)' : ''}`, `rec = 각 포신의 반동값(diep.io tankdefs의 recoil, 없으면 1). 총알 크기·속도·능력치 포인트·레벨과 무관한 고정값이고 한 발 상한은 없습니다(속도 상한 1,500px/초만 적용). 한 발로 밀리는 총 거리 = 반동 속도 ÷ 마찰 ${CFG.drag}.`]));
+add(P(`diep.io는 한 발마다 탱크 속도에 2 × rec(원작 단위/틱)를 더하고 틱마다 속도의 10%를 마찰로 잃습니다(역분석 자료 diepindepth physics §3.6, diepcustom Barrel.ts). 우리 게임은 마찰과 최고 속도 비율이 달라 원작의 감각을 모두 맞출 수 없어서, recoilPer는 **계속 쏠 때 반동이 이동 가속을 방해하는 비율**을 1레벨 원작에 맞춘 값(32.5, 추정 환산)으로 둡니다. 18이면 한 발 순간 속도 ÷ 최고 속도, 61.6이면 한 발에 밀리는 거리 ÷ 탱크 반지름을 원작에 맞춥니다. \`recoilLevelComp\`를 켜면 이동 감속의 레벨 차이(원작 레벨당 1.5%, 우리 1%)를 반동에 보정합니다(45레벨에서 1.24배, 기본 꺼짐).`));
+{
+  const rows = Object.keys(CL).filter(k => CL[k].barrels.some(b => b.rec != null && b.rec !== 1) || k === 'tank').map(k => { const c = CL[k], recs = [...new Set(c.barrels.map(b => b.rec != null ? b.rec : 1))]; return [c.n, recs.join(' / '), recs.map(r => n0(CFG.recoilPer * r)).join(' / '), recs.map(r => f1(CFG.recoilPer * r / CFG.drag)).join(' / ')]; });
+  add(...T(['클래스', '포신 반동 rec', '한 발 반동 속도(px/초)', '한 발에 밀리는 거리(px, 계산)'], rows, [2600, 2000, 2400, W - 7000], { size: 17, align: Array(4).fill(CT) }));
+}
+add(H3("반동 방식 'legacy' (이전 방식)"));
+add(...FML([`반동 속도 = min(${CFG.recoilMax}, ${CFG.recoilK} × ${CFG.recoilMul} × 클래스 반동 × (총알 크기 ÷ 탱크 반지름)² × √(총알 속도 × ${CFG.recoilV}))`, `클래스 반동 = CFG.classes의 recoil, 총알 크기 = 클래스 공통 크기(포신별 size는 쓰지 않음), 총알 속도 = (480 + 45 × 탄속 포인트) × 클래스 탄속 배율(px/초). ${CFG.recoilMul}는 모든 레벨에 같은 반동 보정(50%)이고, 식의 총알 크기와 속도는 기본 배율(크기 ×${CFG.bulletSizeMul}, 속도 ×${CFG.bulletSpeedMul})을 곱하기 전의 값입니다.`]));
 add(H2('4.7 사망과 재시작'));
 add(...BUL([
   '체력이 0 이하가 되면 사망합니다. 오토 파이어가 꺼지고, **마지막으로 피해를 준 대상**을 카메라가 부드럽게 따라가며 관전합니다(대상이 죽으면 그 자리에 고정, "Spectating 이름" 표시).',
@@ -656,7 +664,8 @@ add(...T(['이름', '값', '의미'], [
   ['bodyPhys', JSON.stringify(CFG.bodyPhys), '몸통 충돌 물리: mode(tuned/legacy), shapeMass = 탱크와 부딪힐 때 도형 질량에 곱하는 배율(작을수록 가벼움)'], ['bulletRange', JSON.stringify(CFG.bulletRange), '한 발의 총 피해 범위: mode(range/legacy), target(tank/all), tMin 하한 틱 수, tMaxA/tMaxB 상한 틱 수 = tMaxA + tMaxB × P (P = 총알 체력 ÷ bulletHp)'], ['classUpLevel / classUpLevel2', `${CFG.classUpLevel} / ${CFG.classUpLevel2}`, '클래스를 고르는 레벨(15레벨 / 30레벨)'], ['classUp30', JSON.stringify(CFG.classUp30), '15레벨 클래스 -> 30레벨에서 고를 수 있는 클래스 목록(비어 있으면 타일 없음)'], ['classes.*.reloadMul / par', '(클래스 정의)', '30레벨 클래스의 재장전 배율 / 이전 클래스(봇의 선호 거리·능력치 투자가 없을 때 따름)'], ['bulletLife', CFG.bulletLife, '총알 지속시간 배율(기본 1.9초 × 이 값)'], ['bulletPush', CFG.bulletPush, '총알에 밀리는 강도(대상 속도 증가 배율)'], ['bulletDeflect', CFG.bulletDeflect, '총알이 꺾이는 강도'], ['bulletPushCap', CFG.bulletPushCap, '한 프레임에 더해지는 속도 상한(px/초)'], ['pushTank', CFG.pushTank, '탱크·크래셔가 받는 밀림 배율(bulletPush에 곱함)'], ['pushShape', CFG.pushShape, '도형이 받는 밀림 배율'], ['pushBullet', CFG.pushBullet, '총알끼리 충돌 시 밀림 배율'], ['bulletClashKeepDir', CFG.bulletClashKeepDir, '총알끼리 충돌 뒤에도 진행 방향을 충돌 전 방향으로 유지(true). false면 이전처럼 꺾임·밀림으로 방향이 바뀜'], ['bulletMinSpeed', CFG.bulletMinSpeed, '총알끼리 충돌 뒤 유지하는 최소 속도(처음 속도의 비율, 0이면 하한 없음)'], ['bulletBaseDmg', CFG.bulletBaseDmg, '총알 질량의 기준 피해(피해가 클수록 총알이 무거움)'], ['bulletSpeedMul', CFG.bulletSpeedMul, '총알 기본 속도 배율(포인트로 늘어난 속도까지 전체에 곱함, 사거리도 같은 비율로 변함)'], ['bulletSizeMul', CFG.bulletSizeMul, '총알 기본 크기 배율(반동에는 영향 없음)'], ['viewScale', CFG.viewScale, '화면 기본 배율(클수록 확대, 개발자 휠 줌은 이 값에 곱해짐)'], ['shapeGap', CFG.shapeGap, '도형 사이 최소 간격(px)'], ['shapeDensity', CFG.shapeDensity.toExponential(), '둥지 밖 일반 도형 밀도(개/px²)'],
   ['hyperAfter', CFG.hyperAfter, '급속 회복 시작 무피격 시간(초)'], ['hyperRate', CFG.hyperRate, '급속 회복 초당 최대 체력 비율'],
   ['spawnInvuln', CFG.spawnInvuln, '스폰 무적 최대 시간(초)'], ['respawnMode', CFG.respawnMode, "재시작 레벨 규칙('diep' 또는 'reset')"],
-  ['recoilK / recoilV / recoilMax', `${CFG.recoilK} / ${CFG.recoilV} / ${CFG.recoilMax}`, '반동 계수 / 기준 속도 / 한 발 상한'], ['recoilMul', CFG.recoilMul, '모든 레벨에 적용하는 반동 배율(레벨 보정 없음)'], ['classUpLevel', CFG.classUpLevel, '클래스 선택 레벨'],
+  ['recoilMode', CFG.recoilMode, "반동 방식(diep = 포신별 고정 반동, legacy = 이전 운동량 식)"], ['recoilPer', CFG.recoilPer, "diep: 포신 반동 1당 한 발 반동 속도(px/초)"], ['recoilLevelComp', String(CFG.recoilLevelComp), "diep: 이동 감속의 레벨 차이 보정(반동 x (1.015/1.01)^(레벨-1))"],
+  ['recoilK / recoilV / recoilMax', `${CFG.recoilK} / ${CFG.recoilV} / ${CFG.recoilMax}`, 'legacy: 반동 계수 / 기준 속도 / 한 발 상한'], ['recoilMul', CFG.recoilMul, 'legacy: 모든 레벨에 적용하는 반동 배율(레벨 보정 없음)'], ['classUpLevel', CFG.classUpLevel, '클래스 선택 레벨'],
 ], [2800, 1700, W - 4500]));
 add(H2('9.2 맵, 군집, 둥지, 크래셔'));
 add(...T(['이름', '값', '의미'], [
@@ -818,6 +827,7 @@ add(H1('부록 A. 주요 변경 이력 (주제별)'));
 add(P('변경 이력을 주제별로 묶었습니다. 각 주제 안의 순서는 원래 기록 순서이고 항목 내용은 그대로입니다. 이전 세션의 변경에는 날짜가 기록되어 있지 않아 날짜 순으로는 정리하지 않았습니다. 이번 세션의 가장 최근 변경은 A.1에 따로 요약했습니다.'));
 add(H2('A.1 최근 변경 요약'));
 add(...BUL([
+  '**반동 원작화(2026-10-26):** 반동을 diep.io처럼 포신별 고정값으로 변경(recoilMode = diep). 한 발 반동 속도 = recoilPer 32.5 × 포신 rec(Tank 1, Twin 0.75, Sniper·Assassin 3, Hunter 0.3, Destroyer 15, Gunner 0.2, Tri-Angle 앞 0.2·뒤 2.5). 총알 크기·속도·탄속 포인트와 무관하고 한 발 상한(recoilMax) 없음. 이전 식은 recoilMode = legacy. 결투 측정(classduel, 7클래스, 쌍마다 10번, 시드 2): Destroyer 평균 승률 23% → 13%, Tri-Angle 47% → 58%, 나머지는 ±5%p 안.',
   '**30레벨 전직:** 15레벨 클래스에서 고르는 30레벨 클래스 8개 추가(Triple Shot, Twin Flank, Quad Tank, Assassin, Hunter, Destroyer, Gunner, Tri-Angle). 드론·트랩·자동 포탑·Smasher는 제외(4.5절).',
   '**군집 개편:** 위치 확정 → 성장 → 목표 도달 시 즉시 종료 → 일반 도형 전환. 군집 보충 속도 5개/초 → 1개/초, 일반 도형 밀도 3.6e-6 → 3.7e-6, 성장 시간 30~60초, 군집 목표 밀도 3.7e-5(6장, 반복 측정으로 조정).',
   '**중앙 둥지:** 도형 밀도 30% 감소(오각형 40 → 28, 크래셔 22 → 15, 6장).',

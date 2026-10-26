@@ -1,0 +1,13 @@
+{
+ "game": "80cdb7ef9d6f",
+ "sets": [],
+ "seed": "1",
+ "names": [
+  "classcheck",
+  "fightcheck"
+ ],
+ "results": {
+  "classcheck.bad": 0,
+  "fightcheck.mismatch": 0
+ }
+}

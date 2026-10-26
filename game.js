@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = '0153a78'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
+const BUILD_ID = '3c8610c'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
 
 const CFG = {
   world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
@@ -39,7 +39,7 @@ const CFG = {
   clusters: { areaPerCluster: 33e6, maxCount: 7, rMin: 560, rMax: 720, density: 3.7e-5, refill: 1, mode: 'grow', growTime: [30, 60], startFill: [0.2, 0.9], release: 'free', attractMin: 0.3, life: 480, minGap: 2000, depleted: 0.3 }, // refill = 군집 한 곳이 도형을 다시 채우는 최대 속도(개/초, 이전 5 = 0.4초마다 2개), density = 면적당 목표 도형 수(이전 2.8e-5, 보충을 느리게 한 만큼 x1.2). 이전 동작으로 돌리려면 refill 5, density 2.8e-5 // mode 'grow' = 군집이 위치를 정한 뒤 growTime(초, 범위에서 무작위) 동안 도형을 하나씩 만들고, 만든 개수(spawned)가 목표(target)에 닿으면 더 만들지 않고 군집을 바로 없애며 도형은 일반 도형이 됨(처치로 줄어도 보충하지 않는 총 생성 예산). 'legacy' = 이전 보충 방식(refill로 계속 보충, 소진·수명 시 이동). startFill = 게임 시작 때 목표의 몇 %까지 미리 채울지(범위), release 'free' = 풀린 도형은 표류하며 흩어짐, 'zone' = 풀린 뒤에도 원래 군집 경계 안에 머묾, attractMin = 봇이 배회 목적지로 삼는 군집의 최소 채움 비율 // 반지름은 rMin~rMax 사이 무작위, 도형 수 = 면적 x density
   nest: { r: 1100, refMap: 16583, pentagons: 28, hexagons: 0, hexRespawn: 40, alphaMax: 1, alphaRespawn: 120, crasherMax: 15, largeRatio: 0.35 }, // 맵 중앙의 Pentagon Nest. r/pentagons/crasherMax는 맵 한 변이 refMap일 때의 값이고, 반지름은 맵 크기에 비례, 오각형·크래셔 수는 면적에 비례(밀도 동일), 알파는 항상 alphaMax개
   // 탱크 클래스. 배율은 기본 Tank 기준(diep.io 위키 참고). 배럴 값은 탱크 반지름(r) 배율:
-  // len 길이, w 밑 너비, w2 끝 너비, off 옆 오프셋, ang 방향 회전, size 총알 크기 배율
+  // len 길이, w 밑 너비, w2 끝 너비, off 옆 오프셋, ang 방향 회전, size 총알 크기 배율, rec 포신 반동값(diep.io tankdefs의 recoil, 없으면 1. recoilMode 'diep'에서 사용)
   bots: { base: 10, perLevel: 0.2, max: 20, spawnEvery: 6, maxSpawnLevel: 14, spawnGap: 250, shapeXp: 0.25, spawnIdle: 3, catchUp: 5, catchUpRamp: 0.5 }, // catchUp/catchUpRamp: 목표 레벨(소환 규칙으로 정해진 원래 시작 레벨)에 도달할 때까지 도형·크래셔 점수 배율에 곱하는 가속 = catchUp + catchUpRamp x 소환 후 경과 초 // spawnIdle: 소환 직후 0~spawnIdle초 동안 가만히 대기(무적) // shapeXp: 봇이 도형·크래셔로 얻는 점수 배율(플레이어와 같거나 느린 성장 속도) // spawnGap: 재시작한 플레이어와 봇 사이 최소 거리 // 동시 봇 수 = min(max, base + 플레이어레벨*perLevel)
   classUpLevel: 15,
   classOrder: ['twin', 'sniper', 'machine', 'flank'],
@@ -50,9 +50,9 @@ const CFG = {
     tank:    { n: 'Tank', dmg: 1, pen: 1, speed: 1, reload: 1, fov: 1, recoil: 1, barrels: [{ len: 1.9, w: 0.84 }] },
     // 두 포신이 번갈아 발사(연사 2배), 총알 피해 감소 -> 총 DPS 약 130%
     twin:    { n: 'Twin', c: '#6fc3f0', dmg: 0.65, pen: 0.9, speed: 1, reload: 1, fov: 1, alt: true, recoil: 0.25,
-               barrels: [{ len: 1.9, w: 0.84, off: -0.52, size: 0.85 }, { len: 1.9, w: 0.84, off: 0.52, size: 0.85 }] },
+               barrels: [{ len: 1.9, w: 0.84, off: -0.52, size: 0.85, rec: 0.75 }, { len: 1.9, w: 0.84, off: 0.52, size: 0.85, rec: 0.75 }] },
     // 총알 속도 1.4배, 재장전 느림(23t vs 15t), 시야 넓음, 긴 포신
-    sniper:  { n: 'Sniper', c: '#f2a65a', dmg: 1, pen: 1, speed: 1.4, rt: [23, 21, 19, 18, 16, 15, 14, 12], fov: 0.85, recoil: 0.25, barrels: [{ len: 2.2, w: 0.7 }] },
+    sniper:  { n: 'Sniper', c: '#f2a65a', dmg: 1, pen: 1, speed: 1.4, rt: [23, 21, 19, 18, 16, 15, 14, 12], fov: 0.85, recoil: 0.25, barrels: [{ len: 2.2, w: 0.7, rec: 3 }] },
     // 재장전 약 2배 빠름(8t), 피해 -30%, 탄 퍼짐, 사다리꼴 포신
     machine: { n: 'Machine Gun', c: '#e8cf5c', dmg: 0.7, pen: 1, speed: 1, rt: [8, 7, 7, 6, 6, 5, 5, 4], fov: 1, spread: 0.16, recoil: 0.4,
                barrels: [{ len: 1.9, w: 0.84, w2: 1.47, size: 0.9 }] },
@@ -71,16 +71,16 @@ const CFG = {
                barrels: [{ len: 1.9, w: 0.84 }, { len: 1.9, w: 0.84, ang: Math.PI / 2 }, { len: 1.9, w: 0.84, ang: Math.PI }, { len: 1.9, w: 0.84, ang: -Math.PI / 2 }] },
     // Tri-Angle: 앞 포신 1개(보통 총알) + 뒤쪽 양옆으로 벌어진 포신 2개. 위키: 뒤 포신 총알은 위력 20%, 수명은 약 절반(1.5초). 뒤 포신의 각도·길이·너비와 관통 배율은 **추정**(뒤 포신 반동이 몸을 앞으로 밀어 줌). 포신별 dmg/pen/life = 그 포신 총알의 피해·관통·수명 배율
     triangle: { n: 'Tri-Angle', c: '#5cc9a7', par: 'flank', dmg: 1, pen: 1, speed: 1, reloadMul: 1, fov: 1, recoil: 1,
-               barrels: [{ len: 1.9, w: 0.84 }, { len: 1.6, w: 0.7, ang: Math.PI - 0.5, dmg: 0.2, life: 0.5 }, { len: 1.6, w: 0.7, ang: Math.PI + 0.5, dmg: 0.2, life: 0.5 }] },
+               barrels: [{ len: 1.9, w: 0.84, rec: 0.2 }, { len: 1.6, w: 0.7, ang: Math.PI - 0.5, dmg: 0.2, life: 0.5, rec: 2.5 }, { len: 1.6, w: 0.7, ang: Math.PI + 0.5, dmg: 0.2, life: 0.5, rec: 2.5 }] },
     // Assassin: 더 긴 포신의 저격형. 위키: 총알 속도 기본의 1.5배, 재장전 30틱(포인트마다 -2, -2, -3, -2, -1, -2, -2틱), 시야 넓음. 피해·관통 1.0과 시야 0.75, 반동은 Sniper와 같게 둔 **추정**
-    assassin: { n: 'Assassin', c: '#e08a4a', par: 'sniper', dmg: 1, pen: 1, speed: 1.5, rt: [30, 28, 26, 23, 21, 20, 18, 16], fov: 0.75, recoil: 0.25, barrels: [{ len: 2.5, w: 0.7 }] },
+    assassin: { n: 'Assassin', c: '#e08a4a', par: 'sniper', dmg: 1, pen: 1, speed: 1.5, rt: [30, 28, 26, 23, 21, 20, 18, 16], fov: 0.75, recoil: 0.25, barrels: [{ len: 2.5, w: 0.7, rec: 3 }] },
     // Hunter: 길고 가는 포신 + 짧고 굵은 포신이 겹쳐 동시 발사. 위키: 피해 5.25 = 기본의 0.75배(Sniper보다 -25%), 총알 속도 1.4배, 재장전 38틱. 재장전 표는 Sniper 표 x 38/23을 반올림한 **추정**
-    hunter:  { n: 'Hunter', c: '#f0c070', par: 'sniper', dmg: 0.75, pen: 1, speed: 1.4, rt: [38, 35, 31, 30, 26, 25, 23, 20], fov: 0.85, recoil: 0.25, barrels: [{ len: 2.2, w: 0.6, size: 0.75 }, { len: 1.7, w: 0.95 }] },
+    hunter:  { n: 'Hunter', c: '#f0c070', par: 'sniper', dmg: 0.75, pen: 1, speed: 1.4, rt: [38, 35, 31, 30, 26, 25, 23, 20], fov: 0.85, recoil: 0.25, barrels: [{ len: 2.2, w: 0.6, size: 0.75, rec: 0.3 }, { len: 1.7, w: 0.95, rec: 0.3 }] },
     // Destroyer: 크고 느린 총알(크기 2배, 속도 0.7배), 높은 피해(위키: Annihilator가 21 = 3배이고 Destroyer와 같음), 매우 느린 재장전(Tank x4 = 60틱, 추정), 반동 큼(추정), rangeMin 0.4, rangeMax 0.33 = 한 발의 하한·상한을 다른 클래스(최대 약 110)와 비슷하게(추정)
-    destroyer: { n: 'Destroyer', c: '#d4a63c', par: 'machine', dmg: 3, pen: 1, speed: 0.7, reloadMul: 4, fov: 1, recoil: 2.5, rangeMin: 0.4, rangeMax: 0.33, barrels: [{ len: 1.9, w: 1.3, size: 2 }] },
+    destroyer: { n: 'Destroyer', c: '#d4a63c', par: 'machine', dmg: 3, pen: 1, speed: 0.7, reloadMul: 4, fov: 1, recoil: 2.5, rangeMin: 0.4, rangeMax: 0.33, barrels: [{ len: 1.9, w: 1.3, size: 2, rec: 15 }] },
     // Gunner: 작은 포신 4개가 번갈아 아주 빠르게 발사하는 약한 총알(위키: 작고 약한 총알, 재장전 크게 증가). 피해 0.2, 재장전 Machine Gun 표 x1.15, 퍼짐은 **추정**(정면 지표를 Machine Gun의 약 1.1배로 맞춤)
     gunner:  { n: 'Gunner', c: '#f0e08a', par: 'machine', dmg: 0.2, pen: 1, speed: 1, reloadMul: 1.15, rt: [8, 7, 7, 6, 6, 5, 5, 4], fov: 1, alt: true, spread: 0.14, recoil: 0.4,
-               barrels: [{ len: 1.9, w: 0.42, off: -0.75, size: 0.55 }, { len: 1.9, w: 0.42, off: 0.25, size: 0.55 }, { len: 1.9, w: 0.42, off: -0.25, size: 0.55 }, { len: 1.9, w: 0.42, off: 0.75, size: 0.55 }] },
+               barrels: [{ len: 1.9, w: 0.42, off: -0.75, size: 0.55, rec: 0.2 }, { len: 1.9, w: 0.42, off: 0.25, size: 0.55, rec: 0.2 }, { len: 1.9, w: 0.42, off: -0.25, size: 0.55, rec: 0.2 }, { len: 1.9, w: 0.42, off: 0.75, size: 0.55, rec: 0.2 }] },
   },
 };
 
@@ -108,6 +108,8 @@ CFG.pushTank = 0.5; CFG.pushShape = 1; CFG.pushBullet = 0.2; CFG.bulletMinSpeed 
 CFG.bulletClashKeepDir = true; // 총알끼리 충돌 뒤에도 각 총알의 진행 방향을 충돌 전 방향으로 유지(true). 속도는 밀림으로 줄 수 있고 처음 속도의 bulletMinSpeed~100%로 제한. false면 이전처럼 꺾임·밀림으로 방향이 바뀔 수 있음
 CFG.bulletClashMode = 'mass'; // 총알끼리 충돌 방식: 'mass' = 탱크·도형과 같은 접촉 틱 교환 + 질량 모델(밀림·꺾임), 'instant' = 이전 방식(내구도 비교로 한 번에 승패를 정함, clashTol 사용)
 CFG.bulletSpeedMul = 0.7; CFG.bulletSizeMul = 1.3; // 총알 기본 속도·크기 배율(diep.io는 클래스마다 총알 속도·크기를 배율로 정함. 예: Destroyer는 속도 0.7배, 크기 2배). 속도 배율은 능력치 포인트로 늘어난 속도까지 포함한 전체에 곱함. 사거리 = 속도 x 지속시간이라 속도 배율만큼 줄어듦
+// 반동 방식: 'diep' = 원작처럼 포신마다 고정 반동(한 발 반동 속도 = recoilPer x 포신 rec px/초, 총알 크기·속도·포인트·레벨과 무관, recoilMax 상한 없음), 'legacy' = 이전 운동량 식(recoilK·recoilV·recoilMax·recoilMul과 클래스 recoil 사용). recoilPer 32.5 = 계속 쏠 때 반동이 이동 가속을 방해하는 비율을 원작(1레벨)에 맞춘 값(추정 환산: 18이면 한 발 순간 속도, 61.6이면 한 발에 밀리는 거리를 원작에 맞춤). recoilLevelComp true = 이동 감속의 레벨 차이(원작 1.5%, 우리 1%)를 보정해 반동에 (1.015/1.01)^(레벨-1)을 곱함
+CFG.recoilMode = 'diep'; CFG.recoilPer = 32.5; CFG.recoilLevelComp = false;
 CFG.viewScale = 1.1; // 화면 기본 배율(이전 기본 = 1.0): 클수록 화면이 확대됨(보이는 범위는 1 ÷ 값). 개발자 휠 줌은 이 값에 곱해짐
 // 봇의 싸움·도주 판단(전투 우위 R). mode: 'power' = R 방식, 'legacy' = 이전 방식(레벨 차이·체력 비율). R = (내 체력% x 내 공격력) / (상대 체력% x 상대 공격력). 체력% = 체력 막대에 보이는 비율(상대는 다친 경우만 보이고 가득 차면 100%, 최대 체력의 크기는 보지 않음), 공격력 = (1 + (레벨-1)/offBase)^offPow(레벨로만 추정).
 // 싸움 기준 = thrMul x (needBase - needBold x 대담함). R이 기준 이상이면 싸움, 아니면 도주(경계 구간 없음). 복수 대상은 기준 x grudgeNeed. 정한 판단은 fightHold/fleeHold초 동안 유지하고 그 뒤에는 기준의 +/-hyst 여유를 둠. breakRatio > 0이면 싸우는 중 R이 기준 x breakRatio 밑으로 떨어질 때 유지 시간을 무시(0 = 꺼짐). 쉬움 보정 = clamp(R / (easeDiv x 기준), easeMin, easeMax)
@@ -311,10 +313,10 @@ class Player {
     this.cool -= dt;
     if (inp.fire && this.cool <= 0) {
       const n = this.barrels.length, R = this.reloadT;
-      const fireOne = i => { // 운동량 보존: 반동 속도 = (총알 질량 x 총알 속도) / 탱크 질량, 질량 ~ 반지름^2, 방향은 실제 발사 방향(탄 퍼짐 포함)의 반대
-        const sp = this.spec, a = g.shoot(this, sp, this.barrels[i], i), m = sp.size / CFG.bulletSizeMul / this.r; // 반동은 총알 기본 크기·속도 배율(bulletSizeMul, bulletSpeedMul)의 영향을 받지 않음(diep.io에서 반동은 클래스별 숨은 배율)
-        const lm = CFG.recoilMul; // 반동은 모든 레벨에서 50%(레벨 보정 없음)
-        const dv = Math.min(CFG.recoilMax, CFG.recoilK * lm * (this.def.recoil != null ? this.def.recoil : 1) * m * m * Math.sqrt(sp.bSpeed / CFG.bulletSpeedMul * CFG.recoilV)); // 속도 영향은 제곱근으로 완화(저점/고점 폭 축소), 한 발 상한 있음
+      const fireOne = i => { // 반동 방향은 실제 발사 방향(탄 퍼짐 포함)의 반대. diep: 포신별 고정 반동, legacy: 운동량 보존(반동 속도 = (총알 질량 x 총알 속도) / 탱크 질량, 질량 ~ 반지름^2)
+        const sp = this.spec, a = g.shoot(this, sp, this.barrels[i], i), m = sp.size / CFG.bulletSizeMul / this.r; // legacy 식: 반동은 총알 기본 크기·속도 배율(bulletSizeMul, bulletSpeedMul)의 영향을 받지 않음
+        const lm = CFG.recoilMul; // legacy 식: 반동은 모든 레벨에서 50%(레벨 보정 없음)
+        const dv = CFG.recoilMode === 'diep' ? CFG.recoilPer * (this.barrels[i].rec != null ? this.barrels[i].rec : 1) * (CFG.recoilLevelComp ? Math.pow(1.015 / 1.01, this.level - 1) : 1) : Math.min(CFG.recoilMax, CFG.recoilK * lm * (this.def.recoil != null ? this.def.recoil : 1) * m * m * Math.sqrt(sp.bSpeed / CFG.bulletSpeedMul * CFG.recoilV)); // 속도 영향은 제곱근으로 완화(저점/고점 폭 축소), 한 발 상한 있음
         this.recX -= Math.cos(a) * dv; this.recY -= Math.sin(a) * dv;
         this.kicks[i] = this.r * clamp(0.12 + 0.2 * dv / 144, 0.1, 0.35); // 반동이 클수록 포신이 더 많이 움찔함
       };
