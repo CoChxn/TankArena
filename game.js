@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = '0153a78'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
+const BUILD_ID = '95e6a8f'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
 
 const CFG = {
   world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
@@ -45,7 +45,7 @@ const CFG = {
   classOrder: ['twin', 'sniper', 'machine', 'flank'],
   // 30레벨 전직: 15레벨에서 고른 클래스 -> 고를 수 있는 클래스 목록(diep.io 위키 기준, 드론·트랩·자동 포탑·Smasher 클래스는 제외). 비어 있으면 선택 타일이 없음
   classUpLevel2: 30,
-  classUp30: { twin: ['triple', 'quadtank', 'twinflank'], sniper: ['assassin', 'hunter'], machine: ['destroyer', 'gunner'], flank: ['triangle', 'quadtank', 'twinflank'] },
+  classUp30: { twin: ['triple', 'quadtank', 'twinflank'], sniper: ['assassin', 'hunter', 'trapper'], machine: ['destroyer', 'gunner'], flank: ['triangle', 'quadtank', 'twinflank'] },
   classes: {
     tank:    { n: 'Tank', dmg: 1, pen: 1, speed: 1, reload: 1, fov: 1, recoil: 1, barrels: [{ len: 1.9, w: 0.84 }] },
     // 두 포신이 번갈아 발사(연사 2배), 총알 피해 감소 -> 총 DPS 약 130%
@@ -72,6 +72,9 @@ const CFG = {
     // Tri-Angle: 앞 포신 1개(보통 총알) + 뒤쪽 양옆으로 벌어진 포신 2개. 위키: 뒤 포신 총알은 위력 20%, 수명은 약 절반(1.5초). 뒤 포신의 각도·길이·너비와 관통 배율은 **추정**(뒤 포신 반동이 몸을 앞으로 밀어 줌). 포신별 dmg/pen/life = 그 포신 총알의 피해·관통·수명 배율
     triangle: { n: 'Tri-Angle', c: '#5cc9a7', par: 'flank', dmg: 1, pen: 1, speed: 1, reloadMul: 1, fov: 1, recoil: 1,
                barrels: [{ len: 1.9, w: 0.84 }, { len: 1.6, w: 0.7, ang: Math.PI - 0.5, dmg: 0.2, life: 0.5 }, { len: 1.6, w: 0.7, ang: Math.PI + 0.5, dmg: 0.2, life: 0.5 }] },
+    // Trapper: 총알 대신 트랩(삼각형)을 쏨. 트랩은 날아가다 매 틱 x0.9(초당 계수 -ln(0.9) / 0.04 = 2.634)로 감속해 약 3.2초 뒤 정지하고 24초 동안 남아, 닿는 적에게 피해를 주고 적 탱크를 막음(주인은 통과). 출처: 팬 위키 + diep.io 코드 역분석 자료. 위키 확인: 피해 8.4(= 기본의 1.2배), 재장전 23틱(Sniper 표와 같음), 트랩 체력 3(관통 x1.5), 속도 2배, 시야 0.9, 수명 24초 고정. 추정: 포신 모양(길이·너비), 반동, 속도 흩어짐 12px/초, 트랩 크기(기본 총알과 같게)
+    trapper: { n: 'Trapper', c: '#d99a5b', par: 'sniper', dmg: 1.2, pen: 1.5, speed: 2, rt: [23, 21, 19, 18, 16, 15, 14, 12], fov: 0.9, recoil: 0.25,
+               barrels: [{ len: 1.9, w: 0.7, w2: 1.3, trap: true, drag: 2.634, lifeSec: 24, jitter: 12 }] },
     // Assassin: 더 긴 포신의 저격형. 위키: 총알 속도 기본의 1.5배, 재장전 30틱(포인트마다 -2, -2, -3, -2, -1, -2, -2틱), 시야 넓음. 피해·관통 1.0과 시야 0.75, 반동은 Sniper와 같게 둔 **추정**
     assassin: { n: 'Assassin', c: '#e08a4a', par: 'sniper', dmg: 1, pen: 1, speed: 1.5, rt: [30, 28, 26, 23, 21, 20, 18, 16], fov: 0.75, recoil: 0.25, barrels: [{ len: 2.5, w: 0.7 }] },
     // Hunter: 길고 가는 포신 + 짧고 굵은 포신이 겹쳐 동시 발사. 위키: 피해 5.25 = 기본의 0.75배(Sniper보다 -25%), 총알 속도 1.4배, 재장전 38틱. 재장전 표는 Sniper 표 x 38/23을 반올림한 **추정**
@@ -106,6 +109,7 @@ CFG.botBuild = { up: 0.6, dn: 0.4, lo: 0.6, hi: 1.6, cls: { twin: { reload: 1.3,
 CFG.bulletPush = 0.5; CFG.bulletDeflect = 0.5; CFG.bulletPushCap = 150; CFG.bulletBaseDmg = 7;
 CFG.pushTank = 0.5; CFG.pushShape = 1; CFG.pushBullet = 0.2; CFG.bulletMinSpeed = 0.7; // 밀림 대상별 배율(bulletPush에 곱함): pushTank = 탱크·크래셔, pushShape = 도형, pushBullet = 총알(총알끼리 충돌). bulletMinSpeed = 총알끼리 충돌 뒤에도 유지하는 최소 속도(처음 속도의 비율, 0이면 하한 없음). 모두 1, 1, 1, 0으로 두면 이전과 같음
 CFG.bulletClashKeepDir = true; // 총알끼리 충돌 뒤에도 각 총알의 진행 방향을 충돌 전 방향으로 유지(true). 속도는 밀림으로 줄 수 있고 처음 속도의 bulletMinSpeed~100%로 제한. false면 이전처럼 꺾임·밀림으로 방향이 바뀔 수 있음
+CFG.trapMax = 40; CFG.trapStop = 0.15; // 트랩(Trapper): 소유자당 최대 개수(넘으면 가장 오래된 트랩 제거, 원작은 제한이 없고 수명·재장전이 자연 상한이라 26~50개), 이 속도(px/초) 밑으로 느려지면 완전히 정지(원작은 0.01 du/틱 = 발사 약 3.2초 뒤, 발사 속도 약 660px/초에서 0.15px/초가 약 3.2초)
 CFG.bulletClashMode = 'mass'; // 총알끼리 충돌 방식: 'mass' = 탱크·도형과 같은 접촉 틱 교환 + 질량 모델(밀림·꺾임), 'instant' = 이전 방식(내구도 비교로 한 번에 승패를 정함, clashTol 사용)
 CFG.bulletSpeedMul = 0.7; CFG.bulletSizeMul = 1.3; // 총알 기본 속도·크기 배율(diep.io는 클래스마다 총알 속도·크기를 배율로 정함. 예: Destroyer는 속도 0.7배, 크기 2배). 속도 배율은 능력치 포인트로 늘어난 속도까지 포함한 전체에 곱함. 사거리 = 속도 x 지속시간이라 속도 배율만큼 줄어듦
 CFG.viewScale = 1.1; // 화면 기본 배율(이전 기본 = 1.0): 클수록 화면이 확대됨(보이는 범위는 1 ÷ 값). 개발자 휠 줌은 이 값에 곱해짐
@@ -325,7 +329,7 @@ class Player {
 }
 
 /* ============ Bot (플레이어와 같은 스펙/성장 시스템을 쓰는 AI 탱크) ============ */
-const BOT_DIST = { tank: [340, 260], twin: [320, 250], sniper: [520, 420], machine: [230, 170], flank: [320, 250], assassin: [620, 480], destroyer: [380, 280], gunner: [260, 190] }; /* 값이 없는 30레벨 클래스는 이전 클래스(par)의 값을 따름 */ // [탱크 상대, 도형 파밍] 선호 거리
+const BOT_DIST = { tank: [340, 260], twin: [320, 250], sniper: [520, 420], machine: [230, 170], flank: [320, 250], assassin: [620, 480], destroyer: [380, 280], gunner: [260, 190], trapper: [300, 220] }; /* 값이 없는 30레벨 클래스는 이전 클래스(par)의 값을 따름 */ // [탱크 상대, 도형 파밍] 선호 거리
 const BOT_BUILD = { reload: 3, bDmg: 3, pen: 2.5, bSpeed: 1.5, maxHp: 2, move: 1.5, body: 1, regen: 1 }; // 능력치 투자 기본 가중치(성격 유형과 클래스로 0.6~1.6배 편향)
 const BOT_CLASS_W = { twin: 3, sniper: 2, machine: 3, flank: 2 }; /* 30레벨 클래스는 목록에서 균등하게 고름 */ // 클래스 선택 확률 3:2:3:2 (모든 유형 동일)
 const botBuildWeights = (ty, cls) => { // 성격 수치 -> 능력치 투자 가중치. b>0이면 +0.6, b<0이면 -0.4 한도로 배수를 만들고 클래스 배수를 곱해 0.6~1.6으로 제한
@@ -477,7 +481,7 @@ class Bot extends Player {
         if (T !== this.lastT) { this.lastT = T; if (this.kind === 'tank' && this.mode === 'hunt') this.lockLeft = A.lockMax - (A.lockMax - A.lockMin) * clamp((this.skill - CFG.botSkill[0]) / Math.max(1e-6, CFG.botSkill[1] - CFG.botSkill[0]), 0, 1); }
       }
       aim = Math.atan2(dy + (T.vy || 0) * lt, dx + (T.vx || 0) * lt) + this.aimErr; // 이동 예측 사격
-      fire = d < sp.bSpeed * sp.life * 0.85 && Math.abs(adiff(this.angle, aim)) < 0.25 + sp.spread;
+      fire = d < (this.barrels[0].trap ? sp.bSpeed / this.barrels[0].drag * 0.9 : sp.bSpeed * sp.life * 0.85) && Math.abs(adiff(this.angle, aim)) < 0.25 + sp.spread; /* 트랩은 이동 거리(속도 / 감속) 안일 때만 */
     } else {
       const W = CFG.botFx.wander, nat = W.mode !== 'legacy';
       if (this.t <= 0) { this.t = rand(CFG.botFx.wanderTime[0], CFG.botFx.wanderTime[1]); const wd = this.wanderDir(g); if (nat) this.waT = wd; else this.wa = wd; }
@@ -845,9 +849,10 @@ class Game {
   shoot(o, sp, b, bi) {
     b = b || DEF_BARRELS[0]; // 포신 끝(+옆 오프셋)에서 생성, 퍼짐은 발사 방향에만 적용
     const a0 = o.angle + (b.ang || 0), tip = b.len * o.r * 0.92, off = (b.off || 0) * o.r;
-    const a = a0 + (sp.spread ? rand(-sp.spread, sp.spread) : 0), c = Math.cos(a), s = Math.sin(a);
+    const a = a0 + (sp.spread ? rand(-sp.spread, sp.spread) : 0), c = Math.cos(a), s = Math.sin(a), v = sp.bSpeed - (b.jitter ? rand(0, b.jitter) : 0); // 트랩은 발사 속도에서 0~jitter를 무작위로 뺌
+    if (b.trap) { let n = 0, first = -1; for (let i = 0; i < this.bullets.length; i++) { const t = this.bullets[i]; if (t.trap && t.owner === o) { if (first < 0) first = i; n++; } } if (n >= CFG.trapMax) this.bullets.splice(first, 1); } // 소유자당 트랩 수 제한: 가장 오래된 트랩 제거
     if (this.bullets.length > 500) this.bullets.shift();
-    this.bullets.push({ x: o.x + Math.cos(a0) * tip - Math.sin(a0) * off, y: o.y + Math.sin(a0) * tip + Math.cos(a0) * off, vx: c * sp.bSpeed, vy: s * sp.bSpeed, v0: sp.bSpeed, r: sp.size * (b.size || 1), dmg: sp.dmg * (b.dmg || 1), pen: sp.pen * (b.pen || 1), pen0: sp.pen * (b.pen || 1), life: sp.life * (b.life || 1), owner: o, col: o.col, out: o.out, hits: [] });
+    this.bullets.push({ x: o.x + Math.cos(a0) * tip - Math.sin(a0) * off, y: o.y + Math.sin(a0) * tip + Math.cos(a0) * off, vx: c * v, vy: s * v, v0: v, r: sp.size * (b.size || 1), dmg: sp.dmg * (b.dmg || 1), pen: sp.pen * (b.pen || 1), pen0: sp.pen * (b.pen || 1), life: b.lifeSec || sp.life * (b.life || 1), trap: !!b.trap, drag: b.drag || 0, ang: a, owner: o, col: o.col, out: o.out, hits: [] });
     if (o.kicks) o.kicks[bi] = o.r * 0.3; else o.kick = o.r * 0.3;
     return a;
   }
@@ -877,6 +882,16 @@ class Game {
       for (const c of this.crashers) if (c.hp > 0 && Math.abs(c.x - t.x) < c.r + t.r && Math.abs(c.y - t.y) < c.r + t.r) this.bodyContact(t, c);
     }
     for (let i = 0; i < tanks.length; i++) for (let j = i + 1; j < tanks.length; j++) this.bodyContact(tanks[i], tanks[j]);
+    for (const b of this.bullets) { // 트랩은 적 탱크를 막음(주인은 통과): 탱크만 밀려나고 트랩 쪽으로 향하는 속도가 사라짐(겹침이 조금 남아 닿아 있는 동안 피해 교환은 계속되고, 트랩 체력이 다하면 트랩이 사라져 막는 효과도 끝남)
+      if (!b.trap || b.pen <= 0) continue;
+      for (const t of tanks) {
+        if (t === b.owner || t.hp <= 0) continue;
+        const dx = t.x - b.x, dy = t.y - b.y, R = t.r + b.r; if (Math.abs(dx) > R || Math.abs(dy) > R) continue;
+        const d = Math.hypot(dx, dy); if (d >= R || d < 1e-6) continue;
+        const nx = dx / d, ny = dy / d, slack = 1.5; if (d < R - slack) { const cor = (R - slack - d) * 0.65; t.x += nx * cor; t.y += ny * cor; } /* 겹침이 slack(1.5px) 이하가 될 때까지만 밀어, 닿아 있는 동안 피해 교환이 이어지게 함 */
+        const vn = t.vx * nx + t.vy * ny; if (vn < 0) { t.vx -= vn * nx; t.vy -= vn * ny; }
+      }
+    }
   }
   bodyContact(a, b) { // diep.io: 충돌 틱마다 '한 번의 타격' 피해를 서로 주고, 질량(크기)에 따라 튕겨 나감
     const c = collide(a, b); if (!c || c.pen < 1) return;
@@ -939,7 +954,9 @@ class Game {
   updateBullets(dt) {
     const p = this.player, W = CFG.world, u = dt / TICK; let j = 0; const grid = this.buildShapeGrid();
     for (let i = 0; i < this.bullets.length; i++) {
-      const b = this.bullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      const b = this.bullets[i];
+      if (b.drag) { const f = Math.exp(-b.drag * dt); b.vx *= f; b.vy *= f; if (b.vx * b.vx + b.vy * b.vy < CFG.trapStop * CFG.trapStop) b.vx = b.vy = 0; } /* 트랩: 매 프레임 감속, 거의 멈추면 정지 */
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
       let alive = b.life > 0 && b.x > MAP.lo && b.y > MAP.lo && b.x < MAP.hi && b.y < MAP.hi;
       if (alive) {
         alive = this.bulletVsShapes(b, grid, u) && this.bulletVs(b, this.bots, u) && this.bulletVs(b, this.crashers, u);
@@ -973,7 +990,7 @@ class Game {
     const w = u * f; this.bulletPush(a, c, w); this.bulletPush(c, a, w); // 서로를 대상으로 한 번씩(pushBullet 배율 적용)
     const fl = CFG.bulletMinSpeed, kd = CFG.bulletClashKeepDir;
     for (const [bb, bx, by] of [[a, ax, ay], [c, cx, cy]]) {
-      if (bb.pen <= 0) continue;
+      if (bb.pen <= 0 || bb.drag) continue; /* 트랩은 방향 고정·속도 하한 보정을 받지 않음(멈춘 트랩이 다시 움직이지 않게) */
       if (kd) { // 방향 고정: 충돌 전 방향으로 되돌리고, 속도는 밀린 속도의 원래 방향 성분을 [처음 속도 x bulletMinSpeed, 처음 속도]로 제한(역방향으로 되튀지 않고, 처음보다 빨라지지 않음)
         const o = Math.hypot(bx, by); if (o < 1e-6) continue; const dx = bx / o, dy = by / o, proj = bb.vx * dx + bb.vy * dy, sp = Math.min(bb.v0, Math.max(proj, bb.v0 * fl, 0));
         bb.vx = dx * sp; bb.vy = dy * sp; continue;
@@ -1091,7 +1108,7 @@ class Game {
       poly(ctx, c.x, c.y, c.r, 3, c.angle, c.s.c, c.s.o); if (c.flash > 0) poly(ctx, c.x, c.y, c.r, 3, c.angle, `rgba(255,60,60,${Math.min(0.5, c.flash * 4)})`);
       if (c.hp < c.maxHp) hpbar(ctx, c);
     }
-    for (const b of this.bullets) if (cam.visible(b.x, b.y, b.r)) disc(ctx, b.x, b.y, b.r, b.col, b.out);
+    for (const b of this.bullets) if (cam.visible(b.x, b.y, b.r)) { if (b.trap) poly(ctx, b.x, b.y, b.r * 1.15, 3, b.ang, b.col, b.out); else disc(ctx, b.x, b.y, b.r, b.col, b.out); } // 트랩은 삼각형
     for (const e of this.bots) { if (!cam.visible(e.x, e.y, e.r + 30)) continue; if (e.invT > 0) ctx.globalAlpha = 0.45 + 0.25 * Math.sin(this.clock * 8 + e.x); drawTank(ctx, e, e.col, e.out, true); ctx.globalAlpha = 1; if (e.hp < e.maxHp) hpbar(ctx, e); label(ctx, this.dev && this.devPanel ? `${e.name}  ${e.pt.n}  ${e.stateTag()}${e.rTag()}` : e.name, e.x, e.y - e.r - 28, 13, 'center'); label(ctx, `Lv ${e.level} ${e.def.n}`, e.x, e.y - e.r - 13, 11, 'center'); } // 개발자 모드(F2 패널이 켜져 있을 때)에는 이름 옆에 성격 유형, 현재 행동, 전투 우위 R을 함께 표시
     if (p.alive) { if (p.invT > 0) ctx.globalAlpha = 0.45 + 0.25 * Math.sin(this.clock * 8); drawTank(ctx, p, p.col, p.out, true); ctx.globalAlpha = 1; if (p.hp < p.maxHp) hpbar(ctx, p); label(ctx, p.name, p.x, p.y - p.r - 14, 14, 'center'); } // 무적 중에는 반투명하게 깜빡임
     this.fx.draw(ctx, cam); ctx.restore();

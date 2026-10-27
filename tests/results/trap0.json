@@ -1,0 +1,20 @@
+{
+ "game": "80cdb7ef9d6f",
+ "sets": [],
+ "seed": "1",
+ "names": [
+  "classcheck",
+  "dmgrange",
+  "sanity"
+ ],
+ "results": {
+  "classcheck.bad": 0,
+  "dmgrange.min": 2.1,
+  "dmgrange.avg": 30.8046,
+  "dmgrange.max": 109.8998,
+  "sanity.issues": 0,
+  "sanity.maxTankV": 299.2238,
+  "sanity.maxShapeV": 167.0887,
+  "sanity.updMs": 0.9026
+ }
+}

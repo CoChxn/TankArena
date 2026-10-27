@@ -28,6 +28,7 @@ const SC = {
   clustercheck: ['군집 일생 확인(grow 모드): 총 생성이 목표를 넘지 않는지, 목표 달성 뒤 생성이 없는지, 성장 시간, 종료 사유, 군집 수 유지, 도형 수', o => 5 + o.min * 3],
   classcheck: ['클래스 전직 규칙(15·30레벨 선택지, 잘못된 선택 거부), 봇 선택 분포, 클래스별 초당 발사 수·피해 지표', () => 8],
   classduel: ['클래스 1대1 결투: 같은 레벨·같은 성격의 봇 둘이 맞붙는 승률표(--classes a,b,c --n 결투 수 --limit 초 --level L)', o => { const k = opt.classes ? String(opt.classes).split(',').length : 12; return 5 + k * (k - 1) / 2 * (opt.n ? +opt.n : 2) * 2; }],
+  trapcheck: ['트랩(Trapper): 감속·정지·거리, 수명, 개수 제한, 적 탱크 막기와 주인 통과, 부활 뒤 옛 트랩 피해, 봇 사거리', () => 10],
   bodycheck: ['몸통 충돌 물리 측정: 플레이어가 도형·탱크를 향해 계속 전진할 때 전진 속도, 대상이 밀린 거리, 멈춤 여부', () => 6],
   botspawn: ['봇 스폰 위치 분포(맵 전체 무작위인지)', () => 3],
   autofire: ['사망 시 오토파이어 해제, E 키 동작', () => 1],
@@ -441,6 +442,44 @@ S.classduel = o => { // 클래스 1대1 결투: 같은 레벨·같은 성격(균
   say('행 = 해당 클래스의 승률(상대 = 열)'.padEnd(14) + cls.map(c => c.slice(0, 5).padStart(6)).join('') + '   평균');
   const avgs = {}; for (const a of cls) { const v = cls.filter(b => b !== a).map(b => win[a][b]); avgs[a] = v.reduce((x, y) => x + y, 0) / Math.max(1, v.length); say(a.padEnd(14) + cls.map(b => (a === b ? '   -  ' : f0(win[a][b]).padStart(6))).join('') + '  ' + f0(avgs[a]).padStart(4)); rec('classduel.avg.' + a, avgs[a]); }
   const sorted = cls.slice().sort((x, y) => avgs[y] - avgs[x]); say('평균 승률 순: ' + sorted.map(c => c + ' ' + f0(avgs[c])).join(' > '));
+};
+
+S.trapcheck = () => { // Trapper 트랩의 동작 확인
+  const f1 = x => x.toFixed(1), f2 = x => x.toFixed(2), cx = C.world / 2; let bad = 0; const chk = (ok, msg) => { if (!ok) { bad++; say('  ! ' + msg); } };
+  const ssf = g.spawnShape, scr = g.spawnCrasher, b0 = C.bots.base, p0 = C.bots.perLevel;
+  const setup = () => { const Q = fresh({ x: cx, y: cx, level: 30 }); C.bots.base = 0; C.bots.perLevel = 0; g.spawnShape = () => false; g.spawnCrasher = () => {}; g.shapes = []; g.crashers = []; g.bullets = []; g.bots = []; Q.setLevel(30); Q.setClass('trapper'); Q.hp = Q.maxHp = 1e9; Q.invT = 0; Q.aim = function () {}; Q.angle = 0; Q.x = cx; Q.y = cx; Q.vx = Q.vy = 0; return Q; };
+  const fireOnce = Q => { Q.cool = 0; g.input.down = true; g.update(1 / 60); g.input.down = false; return g.bullets.find(t => t.trap && t.owner === Q); };
+  const stepUntil = (n, cb) => { for (let i = 0; i < n; i++) { g.update(1 / 60); if (cb && cb(i)) return i; } return n; };
+  try {
+    say('=== [trapcheck] Trapper 트랩 확인 (Lv30, 능력치 0포인트) ===');
+    { const Q = setup(), tr = fireOnce(Q); chk(!!tr, '트랩이 생성되어야 함'); if (tr) {
+      const x0 = tr.x, y0 = tr.y, v0 = tr.v0, k = tr.drag, dist0 = Math.hypot(tr.vx, tr.vy); let tStop = null, n = 1;
+      for (; n < 60 * 30; n++) { g.update(1 / 60); if (tStop === null && tr.vx === 0 && tr.vy === 0) tStop = n / 60; if (!g.bullets.includes(tr)) break; }
+      const dist = Math.hypot(tr.x - x0, tr.y - y0), exp = v0 / k, life = n / 60;
+      say('[1] 발사 속도 ' + f1(v0) + 'px/초 (Tank 같은 능력치 총알 ' + f1(Q.spec.bSpeed / 2) + ' x 2), 감속 계수 ' + f2(k) + ' → 정지까지 ' + (tStop === null ? '정지 안 함' : f2(tStop) + '초') + ', 이동 거리 ' + f1(dist) + 'px (식 v0 ÷ k = ' + f1(exp) + 'px), 수명 ' + f2(life) + '초 (기대 24초)');
+      chk(tStop !== null && tStop > 1.5 && tStop < 4, '3초 안팎에 정지해야 함'); chk(Math.abs(dist - exp) < exp * 0.08, '이동 거리가 v0 ÷ k와 8% 이내'); chk(Math.abs(life - 24) < 0.3, '수명 24초'); chk(tr.pen0 === Q.spec.pen * 1, '트랩 체력(관통)은 클래스 값'); } }
+    { const Q = setup(); for (let i = 0; i < 120; i++) { Q.cool = 0; g.input.down = true; g.update(1 / 60); } g.input.down = false; const n = g.bullets.filter(t => t.trap && t.owner === Q).length; say('[2] 120번 연속 발사 뒤 소유자의 트랩 수 ' + n + ' (제한 ' + C.trapMax + ')'); chk(n === C.trapMax, '트랩 수는 제한과 같아야 함'); }
+    const taken = new Map(), odm = g.damage; g.damage = function (e, d, by) { taken.set(e, (taken.get(e) || 0) + d); return odm.call(this, e, d, by); }; /* 체력 자동 회복과 무관하게 받은 피해를 기록 */
+    const trapAt = Q => { const tr = fireOnce(Q); stepUntil(60 * 5, () => tr.vx === 0 && tr.vy === 0); return tr; };
+    { const Q = setup(), tr = trapAt(Q), tx = tr.x, ty = tr.y, R = tr.r, pen0 = tr.pen0;
+      const E = new Bot(tx - 70, ty, 20, 'E'); E.idleT = 1e9; E.invT = 0; E.hp = E.maxHp = 1e9; E.vx = 500; E.vy = 0; g.bots = [E]; Q.x = tx - 2000; Q.y = ty; Q.vx = Q.vy = 0;
+      let contact = null; for (let i = 0; i < 60 && contact === null; i++) { g.update(1 / 60); if (E.x > tx - (E.r + R) - 3) contact = i; } stepUntil(2); const xBlocked = E.x, dmg1 = taken.get(E) || 0, penLeft = tr.pen;
+      say('[3] 적 탱크가 트랩(x ' + f1(tx) + ', 체력 ' + f1(pen0) + ')을 향해 초속 500으로 돌진: 닿은 직후 적 x ' + f1(xBlocked) + ' (통과하면 ' + f1(tx) + ' 이상), 받은 피해 ' + f1(dmg1) + ', 트랩 체력 ' + f1(penLeft));
+      chk(contact !== null, '적이 트랩에 닿아야 함'); chk(xBlocked < tx - 0.5 * (E.r + R), '적 탱크는 트랩 앞에서 막혀야 함'); chk(dmg1 > 0, '닿아 있는 동안 피해를 받아야 함');
+      stepUntil(120); const dmgAll = taken.get(E) || 0; say('    1.7초 뒤: 적이 받은 총 피해 ' + f1(dmgAll) + ' (한 대상에 주는 총 피해 상한 bulletRange의 Dmax ≈ ' + f1(tr.dmg * (C.bulletRange.tMaxA + C.bulletRange.tMaxB * tr.pen0 / C.bulletHp)) + '), 트랩 ' + (g.bullets.includes(tr) ? '남아 있음' : '파괴됨') + ', 적 x ' + f1(E.x));
+      chk(dmgAll < tr.dmg * 3 * 1.5 + 1, '총 피해는 bulletRange 상한 근처 이내'); }
+    { const Q = setup(), tr = trapAt(Q), tx = tr.x, ty = tr.y, R = tr.r; Q.x = tx - 70; Q.y = ty; Q.vx = 500; Q.vy = 0; stepUntil(90);
+      say('    주인은 같은 조건에서 통과: x ' + f1(Q.x) + ' (트랩 x ' + f1(tx) + '), 받은 피해 ' + f1(taken.get(Q) || 0) + ', 트랩 ' + (g.bullets.includes(tr) ? '그대로 남음' : '사라짐')); chk(Q.x > tx + R, '주인은 트랩을 통과해야 함'); chk(!(taken.get(Q) > 0), '주인은 자기 트랩에 피해를 받지 않아야 함'); chk(g.bullets.includes(tr), '주인이 지나가도 트랩은 남아야 함'); }
+    { const Q = setup(), tr = trapAt(Q), tx = tr.x, ty = tr.y; const Q2 = new Player(); Q2.setLevel(30); Q2.hp = Q2.maxHp = 1e9; Q2.invT = 0; Q2.x = tx + 5; Q2.y = ty; Q2.vx = Q2.vy = 0; Q2.aim = function () {}; const oldP = g.player; g.player = Q2; stepUntil(30); const d2 = taken.get(Q2) || 0; g.player = oldP;
+      say('[4] 부활해 새로 만든 플레이어(소유자가 다른 객체)가 옛 트랩 위에 서 있으면 30프레임 동안 받은 피해 ' + f1(d2)); chk(d2 > 0, '새 플레이어는 옛 트랩에 피해를 받아야 함'); }
+    { const Q = setup(); const mk = (lv, x, y) => { const keep = C.botTypes; C.botTypes = [Object.assign({}, C.botTypes.find(t => t.n === '균형형') || C.botTypes[0], { w: 1 })]; const b = new Bot(x, y, lv, 'B', lv); C.botTypes = keep; b.idleT = 0; b.invT = 0; return b; };
+      const res = {}; for (const D of [700, 120]) { const B = mk(30, cx - 2000, cx); B.setClass('trapper'); B.hp = B.maxHp = 1e9; const T = mk(5, cx - 2000 + D, cx); T.idleT = 1e9; T.invT = 1e9; T.hp = T.maxHp = 1e9; g.bots = [B, T]; g.bullets = []; B.angle = 0; B.think = 0; let fired = 0; for (let i = 0; i < 90; i++) { g.update(1 / 60); if (B.inp.fire) fired++; } res[D] = fired; }
+      say('[5] 봇(Trapper, 목표 거리 700 / 120)이 90프레임 동안 발사 입력한 프레임: ' + res[700] + ' / ' + res[120] + ' (트랩 이동 거리는 약 ' + f1(Q.spec.bSpeed / 2.634) + 'px, 먼 쪽은 0, 가까운 쪽은 1 이상이어야 함)'); chk(res[700] === 0, '사거리 밖에서는 쏘지 않아야 함'); chk(res[120] > 0, '사거리 안에서는 쏴야 함'); }
+    { const Q = setup(); const time = n => { g.bullets = []; const owners = []; for (let i = 0; i < 10; i++) owners.push({ id: i }); for (let i = 0; i < n; i++) g.bullets.push({ x: cx + (i % 30) * 60, y: cx + Math.floor(i / 30) * 60, vx: 0, vy: 0, v0: 300, r: 10, dmg: 8, pen: 12, pen0: 12, life: 24, trap: true, drag: 2.634, ang: 0, owner: owners[i % 10], col: '#fff', out: '#000', hits: [] });
+        const t0 = process.hrtime.bigint(); for (let i = 0; i < 60; i++) g.updateBullets(1 / 60); return Number(process.hrtime.bigint() - t0) / 1e6 / 60; };
+      const m0 = time(0), m1 = time(100), m2 = time(400); say('[6] 정지한 트랩이 많을 때 updateBullets 프레임당 시간(헤드리스 CPU, 이 스크립트의 측정): 트랩 0개 ' + f2(m0) + 'ms | 100개 ' + f2(m1) + 'ms | 400개 ' + f2(m2) + 'ms'); rec('trapcheck.ms400', m2); }
+  } finally { if (typeof odm !== 'undefined') g.damage = odm; g.spawnShape = ssf; g.spawnCrasher = scr; C.bots.base = b0; C.bots.perLevel = p0; g.input.down = false; }
+  say(bad ? '확인 결과: 위반 ' + bad + '건' : '확인 결과: 위반 없음'); rec('trapcheck.bad', bad);
 };
 
 S.bodycheck = () => { // 몸통 충돌 물리 측정: 플레이어(레벨 L)가 정지한 대상 쪽으로 3초 동안 계속 전진
