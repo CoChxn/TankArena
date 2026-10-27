@@ -1,0 +1,17 @@
+{
+ "game": "80cdb7ef9d6f",
+ "sets": [],
+ "seed": "1",
+ "names": [
+  "classduel"
+ ],
+ "results": {
+  "classduel.avg.tank": 0.6667,
+  "classduel.avg.twin": 0.7222,
+  "classduel.avg.sniper": 0.4722,
+  "classduel.avg.triangle": 0.3333,
+  "classduel.avg.assassin": 0.3333,
+  "classduel.avg.destroyer": 0.3889,
+  "classduel.avg.gunner": 0.5833
+ }
+}
