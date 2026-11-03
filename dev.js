@@ -74,6 +74,7 @@
   function tick() { if (active && active.inst) active.inst.update(); }
   function sync() { /* game.dev / game.devPanel 상태를 화면에 반영 */
     const on = !!game.dev, vis = on && !!game.devPanel;
+    const ve = document.getElementById('ver'); badge.style.left = ((ve ? ve.offsetWidth : 70) + 14) + 'px'; /* DEV 표시는 버전 표시 오른쪽에 */
     badge.style.display = on ? 'block' : 'none'; panel.style.display = vis ? 'flex' : 'none';
     if (vis && !timer) { tick(); timer = setInterval(tick, POLL_MS); }
     if (!vis && timer) { clearInterval(timer); timer = null; }

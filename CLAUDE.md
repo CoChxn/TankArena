@@ -3,7 +3,7 @@
 HTML/CSS/바닐라 JS(Canvas). 외부 에셋과 빌드 도구는 없고, `index.html`을 브라우저로 열면 실행된다. 답변은 한국어로 한다.
 
 ## 파일
-- `index.html`, `style.css`, `game.js`: 게임 전체(로직은 `game.js` 하나, 설정은 위쪽 `CFG`). `dev.js`: 개발자 모드 화면(선택 로드).
+- `index.html`, `style.css`, `game.js`: 게임 전체(로직은 `game.js` 하나, 설정은 위쪽 `CFG`). `dev.js`: 개발자 모드 화면(선택 로드). 화면 왼쪽 아래 `ver 해시 · 시각`은 `tools/version.js`가 `npm run check`마다 game.js와 `version.json`에 기록한다(서버로 열면 새 버전을 알려 줌).
 - `tests/run.js`: 가짜 DOM으로 `game.js`를 화면 없이 돌리는 시뮬레이션 테스트(Node.js만 필요). `tests/hdr.js`, `seed.js`, `t_*.js`는 이전 단계의 보조 도구.
 - `docs/build_doc.js`: 게임 작동 원리 문서(`Tank_Arena_Mechanics_Review.docx`) 생성기. `npm install` 후 `npm run docs`(= `node docs/build_doc.js`; 같은 폴더 `../game.js`를 읽는다). 문서는 `docs/Tank_Arena_Mechanics_Review.docx`로 저장소 안에 생성된다(`DOC_OUT` 환경변수로 경로 변경).
 - `docs/PENDING.md`: 문서에 아직 반영하지 않은 작은 수정 목록(문서의 기준 해시 포함).

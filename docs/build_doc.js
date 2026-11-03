@@ -100,7 +100,7 @@ add(...T(['파일', '역할'], [
   ['game.js', `게임 전체 로직(${NLINES}줄). 설정(CFG), 입력, 카메라, 플레이어, 봇 AI, 크래셔, UI, 게임 본체(소환, 충돌, 갱신, 그리기).`],
   ['tests/run.js', '설정형 헤드리스 시뮬레이션 테스트 도구(10장). 가짜 DOM으로 game.js를 화면 없이 돌려 봅니다.'],
   ['tests/ 나머지', '통합 전의 개별 테스트 스크립트(t_pop.js, t_fp.js 등). 기록 보존용.'],
-  ['tools/version.js', '화면 왼쪽 아래에 표시되는 버전(`BUILD_ID`, game.js 내용 해시 앞 7자리)을 game.js에 기록(`npm run version`, `npm run check`에 포함). 같은 내용이면 항상 같은 값이라, 실행 중인 파일이 최신인지 확인하는 용도.'],
+  ['tools/version.js', '화면 왼쪽 아래에 `ver 해시 · 월/일 시:분`으로 표시되는 버전을 만듭니다(`npm run version`, `npm run check`에 포함). 해시(`BUILD_ID`)는 game.js 내용 해시 앞 7자리이고 같은 내용이면 항상 같은 값이며, 시각(`BUILD_AT`, 내용이 바뀐 때만 갱신, 표시는 내 시간대)과 함께 game.js와 `version.json`에 기록됩니다. 서버(http)에서 열면 1분마다 `version.json`을 확인해 새 버전이 올라오면 표시가 빨간색 "새 버전 ... 눌러서 새로고침"으로 바뀝니다(file://로 열면 확인하지 않음).'],
   ['tools/multiseed.js', '여러 시드로 두 설정(A, B)을 반복 측정해 평균·표준편차·차이(z)를 비교(설정은 JSON 파일).'],
 ], [2200, W - 2200]));
 add(NOTE('**실행:** index.html, style.css, game.js를 같은 폴더에 두고 index.html을 브라우저로 엽니다. game.js를 바꾼 뒤에는 Ctrl+F5(강력 새로 고침)로 불러오세요. 압축 파일 안에서 바로 열면 game.js가 로드되지 않아 버튼이 동작하지 않습니다.'));
@@ -924,6 +924,7 @@ add(...NUM([
   '테스트 도구 tests/run.js 통합(설정형, 시드, 저장·비교, 함수별 시간).',
   '테스트 도구 정리: 시나리오마다 게임을 새로 로드, scorecheck 추가, types에 목표 전환 측정, shapes·nest·pop 수정.',
   '테스트 도구에 aicheck(봇 AI 측정)와 memorycheck 시나리오 추가.',
+  '버전 표시를 `ver 해시 · 월/일 시:분`으로 확장(BUILD_AT, version.json), http로 열면 새 버전이 올라왔는지 1분마다 확인해 빨간 배너로 알림, 표시를 읽기 쉽게 배경 추가. 개발자 DEV 표시는 버전 표시 오른쪽으로.',
   '개발자 모드 개편 2단계: dev.js에 PLAYER(레벨·클래스 직접 선택·능력치·무적·이동 배율·점수), BOTS(생성·제거·정지·표), WORLD(도형·크래셔·군집 생성, 정리) 탭 추가. game.js 훅: 무적(god), 이동 배율(devSpeed), 봇 정지(devFreeze, frozen). tools/devsmoke.js에 탭 조작 점검 추가.',
   '개발자 모드 개편 1단계: F2로 켜기(누구나, 주소 조건 없음), 다시 누르면 패널 토글, Shift+F2로 끄기, `\\`는 꺼져 있으면 켬. 개발자 기능을 별도 파일 dev.js로 분리해 처음 F2/`\\`를 누를 때 불러오고(실패하면 캔버스 대체 패널), HTML 탭 패널의 INFO 탭에 기존 WORLD·CLUSTERS·BOTS 정보를 이식. 왼쪽 아래 DEV 표시, 패널 위치(좌/우) 전환.',
   'Trapper 포신 모양을 diep.io 묘사에 맞춤: 곧은 발사통 + 끝이 벌어지는 발사대 덮개. 포신에 from(중간에서 시작하는 덧붙이는 부분)과 noFire(발사하지 않는 모양 전용 포신) 필드 추가.',

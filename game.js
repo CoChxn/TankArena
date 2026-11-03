@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = '062ca6d'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
+const BUILD_ID = '94b2163', BUILD_AT = '2026-11-03T11:06Z'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시와, 그 해시가 바뀐 시각(UTC)) */
 
 const CFG = {
   world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
@@ -1147,6 +1147,14 @@ function frame(t) {
 game = new Game(document.getElementById('c'));
 document.getElementById('play').onclick = () => game.start();
 document.getElementById('again').onclick = () => game.start();
-{ const ve = document.getElementById('ver'); if (ve) ve.textContent = 'v' + BUILD_ID; } // 화면 왼쪽 아래의 버전 표시(현재 파일의 내용 해시 앞 7자리, 최신 파일인지 확인용)
+{ const ve = document.getElementById('ver'); // 화면 왼쪽 아래의 버전 표시: ver 해시 · 만든 시각(내 시간대). 서버(http)에서 열면 1분마다 version.json을 확인해 새 버전이 올라오면 알려 줌
+  if (ve) {
+    const d = new Date(BUILD_AT), p2 = n => String(n).padStart(2, '0'), at = isNaN(d) ? '' : ` · ${d.getMonth() + 1}/${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    ve.textContent = 'ver ' + BUILD_ID + at; ve.title = '실행 중인 파일의 버전(내용 해시)과 만든 시각입니다. 수정 내용이 반영되면 이 표시가 바뀝니다.'; ve.onclick = () => location.reload();
+    if (typeof location !== 'undefined' && /^https?:/.test(location.protocol) && typeof fetch === 'function') {
+      const chk = () => fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(v => { if (v && v.id && v.id !== BUILD_ID) { ve.textContent = `새 버전 ${v.id} 있음 — 눌러서 새로고침 (실행 중 ${BUILD_ID})`; ve.classList.add('new'); } }).catch(() => {});
+      setTimeout(chk, 2000); setInterval(chk, 60000);
+    }
+  } }
 for (const id of ['nick', 'nick2']) document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') game.start(); });
 requestAnimationFrame(frame);

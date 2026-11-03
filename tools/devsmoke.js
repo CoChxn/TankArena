@@ -39,5 +39,15 @@ let chromium; try { ({ chromium } = require('playwright')); } catch (e) { consol
   await pg.evaluate(() => { game.bullets.push({ trap: true, x: 0, y: 0, vx: 0, vy: 0, r: 5, pen: 1, life: 5, owner: {} }, { x: 0, y: 0, vx: 0, vy: 0, r: 5, pen: 1, life: 5, owner: {} }); }); await click('트랩만'); chk(await gs(() => game.bullets.filter(b => b.trap).length) === 0, 'WORLD: 트랩만 삭제'); await click('총알 전부'); chk(await gs(() => game.bullets.length) === 0, 'WORLD: 총알 전부 삭제');
   await tab('info');
   await pg.close(); pg = await open(true); await pg.keyboard.press('F2'); await pg.waitForTimeout(500); s = await st(pg); chk(s.dev && s.state === 'failed', 'dev.js를 못 불러와도(차단) 개발자 모드는 켜지고 대체 패널을 씀'); await pg.close();
+  // ---- 버전 표시 ----
+  { const vp = await open(false); const txt = await vp.evaluate(() => document.getElementById('ver').textContent); chk(/^ver [0-9a-f]{7} · \d+\/\d+ \d{2}:\d{2}$/.test(txt), '버전 표시(file://): ' + txt); await vp.close();
+    const http = require('http'), fs = require('fs'), root = path.join(__dirname, '..'), real = JSON.parse(fs.readFileSync(path.join(root, 'version.json'), 'utf8'));
+    const serve = fakeId => new Promise(res => { const sv = http.createServer((q, r) => { const u = q.url.split('?')[0]; if (u === '/version.json') { r.setHeader('content-type', 'application/json'); r.end(JSON.stringify(fakeId ? { id: fakeId, at: real.at } : real)); return; } const f = path.join(root, u === '/' ? 'index.html' : u); if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.statusCode = 404; r.end(); return; } r.setHeader('content-type', f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : 'text/html'); r.end(fs.readFileSync(f)); }).listen(0, '127.0.0.1', () => res(sv)); });
+    for (const [fake, want] of [[null, false], ['aaaaaaa', true]]) {
+      const sv = await serve(fake), pgv = await b.newPage({ viewport: { width: 1100, height: 700 } }); pgv.on('pageerror', e => errs.push(String(e)));
+      await pgv.goto('http://127.0.0.1:' + sv.address().port + '/index.html'); await pgv.waitForTimeout(2800);
+      const r = await pgv.evaluate(() => { const e = document.getElementById('ver'); return [e.textContent, e.classList.contains('new')]; });
+      chk(r[1] === want && (!want || r[0].includes('새 버전 aaaaaaa')), '버전 확인(http, version.json ' + (fake ? '다름' : '같음') + '): ' + r[0]); await pgv.close(); sv.close();
+    } }
   chk(errs.length === 0, '페이지 오류 0건' + (errs.length ? ': ' + errs[0] : '')); await b.close(); process.exit(bad ? 1 : 0);
 })();
