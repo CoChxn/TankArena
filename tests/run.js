@@ -407,7 +407,7 @@ S.classcheck = () => { // 전직 규칙 확인과 클래스별 초당 발사 수
   for (const k of cls) {
     const Q = fresh(); g.shapes = []; Q.setLevel(1); Q.setClass(k); Q.angle = 0; Q.aim = function () {}; g.input.down = true; let shots = 0; const os = g.shoot; g.shoot = function (...a) { if (a[0] === Q) shots++; return os.apply(this, a); };
     for (let i = 0; i < 600; i++) { Q.hp = Q.maxHp = 1e9; g.update(1 / 60); } g.shoot = os; g.input.down = false;
-    const fw = Q.barrels.filter(b => Math.abs(Math.sin((b.ang || 0) / 2)) < 0.4).length / Q.barrels.length, sps = shots / 10, v = sps * Q.spec.dmg * fw; if (k === 'tank') base = v; rows.push([k, sps, Q.spec.dmg, fw, v, Q.barrels.length]);
+    const fb = Q.barrels.filter(b => !b.noFire), fw = fb.filter(b => Math.abs(Math.sin((b.ang || 0) / 2)) < 0.4).length / fb.length, sps = shots / 10, v = sps * Q.spec.dmg * fw; if (k === 'tank') base = v; rows.push([k, sps, Q.spec.dmg, fw, v, fb.length]);
   }
   for (const [k, sps, d, fw, v, nb] of rows) say('    ' + k.padEnd(10) + '포신 ' + nb + ' | ' + f1(sps).padStart(5) + '발/초 | 틱당 피해 ' + f2(d).padStart(5) + ' | 정면 ' + f2(fw) + ' | 지표 ' + f2(v / base) + '배');
   say('[5] 포신별 총알 배율(Tri-Angle): 한 번 발사해 생긴 총알의 피해·관통·수명');

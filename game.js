@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = '9f5ea84'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
+const BUILD_ID = '51b9c4f'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
 
 const CFG = {
   world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
@@ -72,9 +72,9 @@ const CFG = {
     // Tri-Angle: 앞 포신 1개(보통 총알) + 뒤쪽 양옆으로 벌어진 포신 2개. 위키: 뒤 포신 총알은 위력 20%, 수명은 약 절반(1.5초). 뒤 포신의 각도·길이·너비와 관통 배율은 **추정**(뒤 포신 반동이 몸을 앞으로 밀어 줌). 포신별 dmg/pen/life = 그 포신 총알의 피해·관통·수명 배율
     triangle: { n: 'Tri-Angle', c: '#5cc9a7', par: 'flank', dmg: 1, pen: 1, speed: 1, reloadMul: 1, fov: 1, recoil: 1,
                barrels: [{ len: 1.9, w: 0.84, rec: 0.2 }, { len: 1.6, w: 0.7, ang: Math.PI - 0.5, dmg: 0.2, life: 0.5, rec: 2.5 }, { len: 1.6, w: 0.7, ang: Math.PI + 0.5, dmg: 0.2, life: 0.5, rec: 2.5 }] },
-    // Trapper: 총알 대신 트랩(삼각형)을 쏨. 트랩은 날아가다 매 틱 x0.9(초당 계수 -ln(0.9) / 0.04 = 2.634)로 감속해 약 3.2초 뒤 정지하고 24초 동안 남아, 닿는 적에게 피해를 주고 적 탱크를 막음(주인은 통과). 출처: 팬 위키 + diep.io 코드 역분석 자료. 위키 확인: 피해 8.4(= 기본의 1.2배), 재장전 23틱(Sniper 표와 같음), 트랩 체력 3(관통 x1.5), 속도 2배, 시야 0.9, 수명 24초 고정. 추정: 포신 모양(길이·너비), 포신 반동값 rec 3(Sniper와 같게), 속도 흩어짐 12px/초, 트랩 크기(기본 총알과 같게)
+    // Trapper: 총알 대신 트랩(삼각형)을 쏨. 트랩은 날아가다 매 틱 x0.9(초당 계수 -ln(0.9) / 0.04 = 2.634)로 감속해 약 3.2초 뒤 정지하고 24초 동안 남아, 닿는 적에게 피해를 주고 적 탱크를 막음(주인은 통과). 출처: 팬 위키 + diep.io 코드 역분석 자료. 위키 확인: 피해 8.4(= 기본의 1.2배), 재장전 23틱(Sniper 표와 같음), 트랩 체력 3(관통 x1.5), 속도 2배, 시야 0.9, 수명 24초 고정. 추정: 포신 모양(곧은 발사통 길이 1.9, 너비 0.7 + 끝 30%가 1.4까지 벌어지는 발사대 덮개, 둘째 포신 noFire는 모양만), 포신 반동값 rec 3(Sniper와 같게), 속도 흩어짐 12px/초, 트랩 크기(기본 총알과 같게)
     trapper: { n: 'Trapper', c: '#d99a5b', par: 'sniper', dmg: 1.2, pen: 1.5, speed: 2, rt: [23, 21, 19, 18, 16, 15, 14, 12], fov: 0.9, recoil: 0.25,
-               barrels: [{ len: 1.9, w: 0.7, w2: 1.3, rec: 3, trap: true, drag: 2.634, lifeSec: 24, jitter: 12 }] },
+               barrels: [{ len: 1.9, w: 0.7, rec: 3, trap: true, drag: 2.634, lifeSec: 24, jitter: 12 }, { len: 1.9, from: 1.3, w: 0.7, w2: 1.4, noFire: true }] },
     // Assassin: 더 긴 포신의 저격형. 위키: 총알 속도 기본의 1.5배, 재장전 30틱(포인트마다 -2, -2, -3, -2, -1, -2, -2틱), 시야 넓음. 피해·관통 1.0과 시야 0.75, 반동은 Sniper와 같게 둔 **추정**
     assassin: { n: 'Assassin', c: '#e08a4a', par: 'sniper', dmg: 1, pen: 1, speed: 1.5, rt: [30, 28, 26, 23, 21, 20, 18, 16], fov: 0.75, recoil: 0.25, barrels: [{ len: 2.5, w: 0.7, rec: 3 }] },
     // Hunter: 길고 가는 포신 + 짧고 굵은 포신이 겹쳐 동시 발사. 위키: 피해 5.25 = 기본의 0.75배(Sniper보다 -25%), 총알 속도 1.4배, 재장전 38틱. 재장전 표는 Sniper 표 x 38/23을 반올림한 **추정**
@@ -170,9 +170,9 @@ function disc(ctx, x, y, r, fill, stroke, lw) {
 const DEF_BARRELS = [{ len: 1.9, w: 0.84 }]; // diep.io 캡처 측정: 탱크 반지름 r 기준 길이 1.9, 굵기 0.84
 function drawBarrels(ctx, x, y, r, ang, barrels, kicks, lw) {
   for (let i = 0; i < barrels.length; i++) {
-    const b = barrels[i], len = b.len * r - (kicks[i] || 0), w1 = b.w * r / 2, w2 = (b.w2 || b.w) * r / 2;
+    const b = barrels[i], len = b.len * r - (kicks[i] || 0), w1 = b.w * r / 2, w2 = (b.w2 || b.w) * r / 2, st = (b.from || 0) * r - (b.from ? (kicks[i] || 0) : 0); /* from = 포신 중간에서 시작하는 덧붙이는 부분(Trapper의 벌어진 발사대) */
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang + (b.ang || 0)); ctx.translate(0, (b.off || 0) * r);
-    ctx.beginPath(); ctx.moveTo(0, -w1); ctx.lineTo(len, -w2); ctx.lineTo(len, w2); ctx.lineTo(0, w1); ctx.closePath();
+    ctx.beginPath(); ctx.moveTo(st, -w1); ctx.lineTo(len, -w2); ctx.lineTo(len, w2); ctx.lineTo(st, w1); ctx.closePath();
     ctx.fillStyle = '#999'; ctx.fill(); ctx.strokeStyle = '#727272'; ctx.lineWidth = lw || 3; ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore();
   }
 }
@@ -325,7 +325,8 @@ class Player {
         this.kicks[i] = this.r * clamp(0.12 + 0.2 * dv / 144, 0.1, 0.35); // 반동이 클수록 포신이 더 많이 움찔함
       };
       if (this.def.alt) { fireOne(this.bi); this.bi = (this.bi + 1) % n; this.cool = R / n; } // Twin: 번갈아 발사
-      else { for (let i = 0; i < n; i++) fireOne(i); this.cool = R; }
+      else { for (let i = 0; i < n; i++) if (!this.barrels[i].noFire) fireOne(i); this.cool = R; } /* noFire = 모양만 있는 포신(발사하지 않음) */
+      for (let i = 1; i < n; i++) if (this.barrels[i].noFire) this.kicks[i] = this.kicks[i - 1]; /* 장식 포신은 앞 포신과 같이 움찔함 */
     }
   }
 }
