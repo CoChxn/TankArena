@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = '3cb501f'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
+const BUILD_ID = '062ca6d'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
 
 const CFG = {
   world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
@@ -309,10 +309,10 @@ class Player {
     while (this.level < CFG.maxLevel && this.score >= CFG.scoreAt[this.level + 1]) { this.level++; this.pts += pointsFor(this.level) - pointsFor(this.level - 1); this.recalc(); }
   }
   setLevel(L) { this.level = L; this.score = CFG.scoreAt[L]; this.pts = pointsFor(L); this.recalc(); this.hp = this.maxHp; } // 재시작: 해당 레벨의 최소 점수, 포인트는 미사용 상태
-  hurt(d, by) { if (this.invT > 0) return; /* 스폰 무적: 피해를 받지 않음 */ this.hp -= d; this.sinceHit = 0; this.flash = 0.12; if (by) this.lastHit = by; if (this.hp <= 0 && this.alive) game.die(); }
+  hurt(d, by) { if (this.invT > 0 || this.god) return; /* 스폰 무적, 개발자 무적(god): 피해를 받지 않음 */ this.hp -= d; this.sinceHit = 0; this.flash = 0.12; if (by) this.lastHit = by; if (this.hp <= 0 && this.alive) game.die(); }
   move(dt, inp) {
     const [ax, ay] = inp.axis(), s = this.s, W = CFG.world;
-    const mv = s.move * this.speedMul; this.vx += ax * mv * CFG.drag * dt; this.vy += ay * mv * CFG.drag * dt; // 최종 속도 ≈ 이동속도 x 레벨 보정
+    const mv = s.move * this.speedMul * (this.devSpeed || 1); this.vx += ax * mv * CFG.drag * dt; this.vy += ay * mv * CFG.drag * dt; // 최종 속도 ≈ 이동속도 x 레벨 보정
     const f = Math.exp(-CFG.drag * dt); this.vx *= f; this.vy *= f;
     const k1 = 1 - Math.exp(-dt / 0.04), k2 = 1 - Math.exp(-dt / 0.07); // 반동은 두 단계 지연을 거쳐 부드럽게 전달 (총 이동 거리 동일, 프레임레이트 무관)
     const mx = this.recX * k1, my = this.recY * k1; this.recX -= mx; this.recY -= my; this.bufX += mx; this.bufY += my;
@@ -398,7 +398,7 @@ class Bot extends Player {
     }
   }
   addXp(v) { super.addXp(v); this.spendPoints(); this.pickClass(); } // 플레이어와 같은 레벨업 -> 포인트 투자 -> 15레벨 클래스 선택
-  hurt(d, by) { if (this.invT > 0) return; /* 스폰 무적: 피해를 받지 않음 */ this.hp -= d; this.sinceHit = 0; this.flash = 0.12; if (by) this.lastHit = by; if (by && by !== this && by.up) { this.grudge = by; this.grudgeLeft = this.grudgeT; } }
+  hurt(d, by) { if (this.invT > 0 || this.god) return; /* 스폰 무적, 개발자 무적(god): 피해를 받지 않음 */ this.hp -= d; this.sinceHit = 0; this.flash = 0.12; if (by) this.lastHit = by; if (by && by !== this && by.up) { this.grudge = by; this.grudgeLeft = this.grudgeT; } }
   pickTarget(g) { // 점수제 목표 선택(2단계): 후보(탱크 사냥/도주, 도형·크래셔 파밍)마다 점수를 매겨 가장 높은 것을 고르고, 떨림 방지 규칙을 적용. 모든 봇이 같은 식을 쓰며 성격 수치는 입력값으로만 작용
     const p = g.player, F = CFG.botFx, sight = 750 * this.sightMul / this.def.fov, cur = this.target; // 교전 시야: 대담함
     if (F.aim.mode === 'legacy') this.aimErr = (Math.random() * 2 - 1) * this.aimErrMax; // 숙련도: 목표를 고를 때마다 조준 오차를 새로 뽑음(이전 방식, 새 방식은 ai()에서 계속 갱신)
@@ -1061,7 +1061,7 @@ class Game {
       if (s.s.regen && s.calm > 8 && s.hp < s.maxHp) s.hp = Math.min(s.maxHp, s.hp + s.maxHp * s.s.regen * dt); // 알파 오각형·육각형은 일정 시간 맞지 않으면 체력 재생
     }
     for (const c of this.crashers) c.update(dt, this);
-    for (const b of this.bots) b.update(dt, this);
+    for (const b of this.bots) if (!this.devFreeze && !b.frozen) b.update(dt, this); // 개발자: 전체/개별 봇 정지(devFreeze, frozen)
     this.ctick += dt; while (this.ctick >= TICK) { this.ctick -= TICK; this.collisionPass(); }
     this.updateBullets(dt);
     for (const n of this.notes) n.t -= dt;

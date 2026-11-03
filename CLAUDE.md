@@ -15,7 +15,7 @@ HTML/CSS/바닐라 JS(Canvas). 외부 에셋과 빌드 도구는 없고, `index.
 
 ## 개발자 모드
 누구나 쓸 수 있다(주소 조건 없음). **F2**로 켜고(패널 열림) 다시 누르면 패널만 숨기며, **Shift+F2**로 끈다. `\` 키는 꺼져 있으면 켜고 레벨 +1(누를 때마다). 휠로 줌한다. 화면의 봇 이름 옆에 `유형  행동 R값`이 표시된다.
-개발자 기능은 `dev.js`(처음 F2나 `\`를 누를 때 불러옴, HTML 탭 패널)에 있고 `game.js`에는 로더와 훅(`DEV`, `devKey`, `UI.devLines`)만 둔다. `dev.js`가 없으면 캔버스 글씨 대체 패널로 동작한다. 단계별 개편(PLAYER·BOTS·WORLD 도구, 오버레이·인스펙터, CONFIG, 시간·로그)이 진행 중이다.
+개발자 기능은 `dev.js`(처음 F2나 `\`를 누를 때 불러옴, HTML 탭 패널)에 있고 `game.js`에는 로더와 훅(`DEV`, `devKey`, `UI.devLines`)만 둔다. `dev.js`가 없으면 캔버스 글씨 대체 패널로 동작한다. 탭: INFO, PLAYER(레벨·클래스 직접 선택·능력치·무적·이동 배율·점수), BOTS(생성·제거·정지·표), WORLD(도형·크래셔·군집 생성, 정리). 남은 단계: 오버레이·인스펙터, CONFIG, 시간·로그. 실제 브라우저 점검은 `node tools/devsmoke.js`(Playwright 필요).
 
 ## 테스트
 - 게임 폴더(`tank-arena`)에서 `node tests/run.js <시나리오[,...]> [--seed N --runs N --min N --set 경로=값 --game 경로 --save 이름 --compare 이름]`. 목록은 `node tests/run.js --list`.
