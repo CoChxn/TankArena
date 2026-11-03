@@ -198,6 +198,129 @@
     },
   });
 
-  DEV.api = { sync, addTab, select, tabs: TABS, setSide };
+  /* ---- 월드 위 표시(오버레이), 자유 카메라, 개체 선택(Shift+클릭) ---- */
+  const VIEW_DEFS = [
+    ['radius', '충돌 반경', '탱크·도형·크래셔·총알의 충돌 반지름 원'], ['vel', '속도 화살표', '탱크의 0.4초 뒤 위치까지 화살표'], ['target', '봇 목표선', '봇 → 현재 목표(빨강 사냥, 노랑 도주, 초록 파밍)와 상태'],
+    ['sight', '교전 시야 반경', '봇이 탱크를 후보로 삼는 거리(점선)'], ['threat', '도주 위협 구역', '도주한 상대의 마지막 위치와 회피 구역(fleeMemory 동안)'], ['clusters', '군집 진행도', '군집별 n/목표, 생성 개수, 나이와 진행 고리'],
+    ['owners', '총알·트랩 소유자 색', '소유자마다 다른 색의 고리(트랩은 굵게)'], ['grid', '도형 격자 칸', '총알 충돌용 256px 칸과 칸별 도형 수'], ['exclusion', '스폰 제외 구역', '봇이 소환되지 않는 평소 시야(+150px)와 저레벨 봇의 둥지 근처(+900px)'],
+  ];
+  let view = {}; try { view = JSON.parse(store.get('tankDevView', '{}')) || {}; } catch (e) { view = {}; }
+  const saveView = () => store.set('tankDevView', JSON.stringify(view));
+  const devCam = { on: false, x: 0, y: 0, follow: null }, SEL = { e: null };
+  const anyView = () => VIEW_DEFS.some(d => view[d[0]]);
+  const hueOf = o => { let h = 0; const t = (o && (o.name || o.kind)) || '?'; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) % 360; return h; };
+  const tanksNow = () => { const a = []; if (game.player.alive) a.push(game.player); for (const b of game.bots) if (b.hp > 0 && !b.gone) a.push(b); return a; };
+
+  function drawWorld(ctx, cam) {
+    const z = cam.zoom, lw = 1.5 / z, hw = cam.w / 2 / z, hh = cam.h / 2 / z, vis = (x, y, r) => Math.abs(x - cam.x) < hw + r && Math.abs(y - cam.y) < hh + r;
+    const circ = (x, y, r, col, w, dash) => { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.strokeStyle = col; ctx.lineWidth = w || lw; ctx.setLineDash(dash ? [dash / z, dash / z] : []); ctx.stroke(); ctx.setLineDash([]); };
+    const line = (x0, y0, x1, y1, col, w) => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.strokeStyle = col; ctx.lineWidth = w || lw; ctx.stroke(); };
+    const arrow = (x0, y0, x1, y1, col) => { line(x0, y0, x1, y1, col, 2 / z); const a = Math.atan2(y1 - y0, x1 - x0), h = 7 / z; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - Math.cos(a - 0.5) * h, y1 - Math.sin(a - 0.5) * h); ctx.moveTo(x1, y1); ctx.lineTo(x1 - Math.cos(a + 0.5) * h, y1 - Math.sin(a + 0.5) * h); ctx.stroke(); };
+    const text = (t, x, y, col) => { ctx.font = `bold ${11 / z}px Consolas,monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3 / z; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.strokeText(t, x, y); ctx.fillStyle = col || '#fff'; ctx.fillText(t, x, y); };
+    const tanks = tanksNow();
+    if (view.radius) {
+      for (const t of tanks) if (vis(t.x, t.y, t.r)) circ(t.x, t.y, t.r, 'rgba(80,200,255,.9)');
+      for (const e of game.shapes) if (e.hp > 0 && vis(e.x, e.y, e.r)) circ(e.x, e.y, e.r, 'rgba(255,220,70,.8)');
+      for (const e of game.crashers) if (e.hp > 0 && vis(e.x, e.y, e.r)) circ(e.x, e.y, e.r, 'rgba(255,120,220,.9)');
+      for (const b of game.bullets) if (vis(b.x, b.y, b.r)) circ(b.x, b.y, b.r, 'rgba(255,255,255,.9)', 1 / z);
+    }
+    if (view.vel) { for (const t of tanks) if (vis(t.x, t.y, 60)) { const sp = Math.hypot(t.vx, t.vy); if (sp > 5) arrow(t.x, t.y, t.x + t.vx * 0.4, t.y + t.vy * 0.4, '#7dff7d'); } }
+    if (view.target || view.sight || view.threat) {
+      for (const b of game.bots) {
+        if (b.hp <= 0 || b.gone || !vis(b.x, b.y, 900)) continue;
+        if (view.sight) circ(b.x, b.y, 750 * b.sightMul / b.def.fov, 'rgba(255,255,255,.35)', lw, 6);
+        if (view.target && b.target && b.target.hp > 0 && !b.target.gone) { const col = b.mode === 'flee' ? '#ffd23c' : b.mode === 'hunt' ? '#ff5050' : '#5fe08a'; line(b.x, b.y, b.target.x, b.target.y, col, 2 / z); text(b.mode + ' ' + (b.kind || '') + (b.kind === 'tank' ? ' R' + b.matchup(b.target).toFixed(2) : ''), b.x, b.y - b.r - 34 / z, col); }
+        if (view.threat) { const th = b.threatNow(); if (th) { const R = 750 * b.sightMul / b.def.fov * CFG.botFight.threatMul; circ(th.x, th.y, R, 'rgba(255,150,40,.9)', lw, 8); line(b.x, b.y, th.x, th.y, 'rgba(255,150,40,.6)', lw); text('threat ' + Math.max(0, th.until - b.age).toFixed(1) + 's', th.x, th.y, '#ffa028'); } }
+      }
+    }
+    if (view.clusters) {
+      for (const c of game.clusters) { if (!vis(c.x, c.y, c.r)) continue; const f = c.target ? c.spawned / c.target : 0, col = c.type === 'square' ? '#ffd23c' : c.type === 'triangle' ? '#ff6e6e' : '#8a9bff'; circ(c.x, c.y, c.r, col, 2 / z, 10);
+        ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 14 / z, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(f, 0, 1)); ctx.strokeStyle = col; ctx.lineWidth = 5 / z; ctx.stroke();
+        text(`${c.type}  n ${c.n}/${c.target}  sp ${c.spawned}/${c.target}  age ${Math.round(c.age)}/${Math.round(c.life)}s`, c.x, c.y, col); }
+    }
+    if (view.owners) { for (const b of game.bullets) { if (!vis(b.x, b.y, b.r)) continue; circ(b.x, b.y, b.r + 3 / z, `hsl(${hueOf(b.owner)},90%,55%)`, (b.trap ? 4 : 2) / z); } }
+    if (view.grid) {
+      const CS = 256, gx0 = Math.floor((cam.x - hw) / CS), gx1 = Math.floor((cam.x + hw) / CS), gy0 = Math.floor((cam.y - hh) / CS), gy1 = Math.floor((cam.y + hh) / CS), grid = game._sgrid;
+      ctx.beginPath(); for (let gx = gx0; gx <= gx1 + 1; gx++) { ctx.moveTo(gx * CS, gy0 * CS); ctx.lineTo(gx * CS, (gy1 + 1) * CS); } for (let gy = gy0; gy <= gy1 + 1; gy++) { ctx.moveTo(gx0 * CS, gy * CS); ctx.lineTo((gx1 + 1) * CS, gy * CS); } ctx.strokeStyle = 'rgba(0,120,255,.45)'; ctx.lineWidth = lw; ctx.stroke();
+      if (grid && (gx1 - gx0 + 1) * (gy1 - gy0 + 1) < 400) for (let gx = gx0; gx <= gx1; gx++) for (let gy = gy0; gy <= gy1; gy++) { const a = grid.get((gx + 8) * 2048 + gy + 8); if (a && a.length) text(String(a.length), gx * CS + CS / 2, gy * CS + CS / 2, 'rgba(120,180,255,1)'); }
+    }
+    if (view.exclusion) {
+      const bz = cam.baseZoom, ex = cam.w / 2 / bz + 150, ey = cam.h / 2 / bz + 150; ctx.setLineDash([10 / z, 8 / z]); ctx.strokeStyle = 'rgba(255,60,60,.9)'; ctx.lineWidth = 2 / z; ctx.strokeRect(cam.x - ex, cam.y - ey, ex * 2, ey * 2); ctx.setLineDash([]);
+      circ(CFG.world / 2, CFG.world / 2, NEST.r + 900, 'rgba(255,60,60,.7)', 2 / z, 10); text('저레벨 봇 소환 제외(둥지+900)', CFG.world / 2, CFG.world / 2 - NEST.r - 900 - 14 / z, '#ff6a6a'); text('봇 소환 제외(평소 시야+150)', cam.x, cam.y - ey - 12 / z, '#ff6a6a');
+    }
+    const e = SEL.e; if (e && e.hp > 0 && !e.gone) { const r = (e.r || 10) + 8 / z + 2 * Math.sin(game.clock * 6) / z; circ(e.x, e.y, r, '#ffe05a', 3 / z); text(e.name || e.kind || (e.s && e.s.n) || 'selected', e.x, e.y - r - 10 / z, '#ffe05a'); }
+  }
+  game.devDraw = (ctx, cam) => { if (anyView() || (SEL.e && SEL.e.hp > 0 && !SEL.e.gone)) drawWorld(ctx, cam); };
+  game.devCamHook = dt => { if (!devCam.on) return; const f = devCam.follow; if (f && f.hp > 0 && !f.gone) { const k = 1 - Math.exp(-6 * dt); devCam.x += (f.x - devCam.x) * k; devCam.y += (f.y - devCam.y) * k; } else devCam.follow = null; game.cam.x = devCam.x; game.cam.y = devCam.y; };
+  const setFree = on => { devCam.on = on; if (on) { devCam.x = game.cam.x; devCam.y = game.cam.y; } else devCam.follow = null; };
+
+  /* 마우스: Shift+클릭 = 개체 선택, 자유 카메라일 때 오른쪽/가운데 버튼 드래그 = 이동 */
+  function pick(sx, sy) {
+    const cam = game.cam, wx = cam.wx(sx), wy = cam.wy(sy), tol = 8 / cam.zoom; let best = null, bd = Infinity;
+    const test = (e, kind, bias) => { if (e.hp <= 0 || e.gone) return; const d = Math.hypot(e.x - wx, e.y - wy) - e.r; if (d <= tol && d + bias < bd) { bd = d + bias; best = e; } };
+    for (const t of tanksNow()) test(t, 'tank', -1000); for (const c of game.crashers) test(c, 'crasher', -500); for (const sh of game.shapes) test(sh, 'shape', 0);
+    return best;
+  }
+  let pan = null;
+  addEventListener('mousemove', e => { if (!pan) return; devCam.follow = null; devCam.x -= (e.clientX - pan.x) / game.cam.zoom; devCam.y -= (e.clientY - pan.y) / game.cam.zoom; pan = { x: e.clientX, y: e.clientY }; });
+  addEventListener('mouseup', () => { pan = null; });
+  const api_mouse = e => {
+    if (e.shiftKey && e.button === 0) { const t = pick(e.clientX, e.clientY); SEL.e = t; if (t) { const tabBtn = tabBar.querySelector('[data-id="inspect"]'); if (tabBtn && game.devPanel) tabBtn.click(); } return true; }
+    if (devCam.on && (e.button === 2 || e.button === 1)) { pan = { x: e.clientX, y: e.clientY }; e.preventDefault(); return true; }
+    return false;
+  };
+
+  /* ---- VIEW 탭: 오버레이 토글 + 카메라 ---- */
+  addTab({
+    id: 'view', title: 'VIEW', build(el) {
+      const boxes = {}, list = E('div');
+      for (const [k, name, tip] of VIEW_DEFS) { const cb = E('input', { id: 'dev-v-' + k, type: 'checkbox' }); cb.checked = !!view[k]; cb.onchange = () => { view[k] = cb.checked; saveView(); }; boxes[k] = cb; list.append(E('div', { class: 'row' }, cb, E('label', { text: name, style: { width: '150px', color: '#fff' }, for: 'dev-v-' + k }), E('span', { class: 'note', text: tip }))); }
+      const free = E('input', { id: 'dev-v-free', type: 'checkbox' }); free.onchange = () => setFree(free.checked);
+      const info = E('div', { class: 'note' });
+      el.append(E('h4', { text: '월드 위 표시 (켠 것만 그림, 꺼져 있으면 비용 0)' }), list,
+        row('', act('전부 켜기', () => { for (const [k] of VIEW_DEFS) { view[k] = true; boxes[k].checked = true; } saveView(); }), act('전부 끄기', () => { for (const [k] of VIEW_DEFS) { view[k] = false; boxes[k].checked = false; } saveView(); })),
+        E('h4', { text: '카메라' }), row('자유 카메라', free, E('span', { class: 'note', text: '오른쪽(또는 가운데) 버튼 드래그로 이동, 휠로 줌. 플레이어는 그대로 조작 가능' })),
+        row('', act('플레이어로 복귀', () => { setFree(false); free.checked = false; }), act('선택한 개체 따라가기', () => { if (SEL.e && SEL.e.hp > 0) { if (!devCam.on) { setFree(true); free.checked = true; } devCam.follow = SEL.e; } })),
+        E('div', { class: 'note', text: 'Shift+클릭: 개체 선택 → INSPECT 탭에서 자세히 보기' }), info);
+      return { update() { free.checked = devCam.on; const c = game.cam; info.textContent = `카메라 (${Math.round(c.x)}, ${Math.round(c.y)}) 줌 x${c.zoom.toFixed(2)}${devCam.on ? (devCam.follow ? '  [따라가기: ' + (devCam.follow.name || devCam.follow.kind) + ']' : '  [자유]') : '  [플레이어]'}`; } };
+    },
+  });
+
+  /* ---- INSPECT 탭: 선택한 개체 정보 ---- */
+  const kv = (k, v) => [k, String(v)];
+  const f1 = x => (Math.round(x * 10) / 10).toString();
+  function describe(e) {
+    const L = [];
+    if (e === game.player || e.isBot) {
+      L.push(kv('이름', e.name), kv('종류', e === game.player ? '플레이어' : '봇'), kv('레벨/점수', `Lv${e.level}  ${fmt(e.score)}`), kv('클래스', e.def.n), kv('체력', `${Math.round(e.hp)}/${Math.round(e.maxHp)}  (${Math.round(e.hp / e.maxHp * 100)}%)`),
+        kv('위치', `${Math.round(e.x)}, ${Math.round(e.y)}`), kv('속도', `${f1(Math.hypot(e.vx, e.vy))}px/s`), kv('반지름', f1(e.r)), kv('스폰 무적', Math.max(0, e.invT).toFixed(1) + 's'), kv('개발자 무적', e.god ? '켜짐' : '꺼짐'));
+      L.push(kv('능력치', CFG.stats.map(st => `${st.k} ${e.up[st.k]}`).join('  ')), kv('총알', `피해 ${f1(e.spec.dmg)}  체력 ${f1(e.spec.pen)}  속도 ${Math.round(e.spec.bSpeed)}  재장전 ${f1(e.reloadT / TICK)}틱`), kv('쿨다운', e.cool.toFixed(2) + 's'));
+      if (e.isBot) {
+        const T = e.target; L.push(kv('상태', e.frozen ? 'frozen' : e.stateTag()), kv('성격', `${e.pt.n}  (b${e.pt.b} g${e.pt.g} p${e.pt.p} r${e.pt.r})  숙련도 ${e.skill.toFixed(2)}`), kv('싸움 기준', e.fightThr.toFixed(2)),
+          kv('목표', T && T.hp > 0 ? `${e.kind}  ${T.name || (T.s && T.s.n) || ''}  ${e.mode}${e.kind === 'tank' ? '  R' + e.matchup(T).toFixed(2) : ''}` : '(없음)'), kv('복수', e.grudge && e.grudgeLeft > 0 ? `${e.grudge.name || e.grudge.kind}  ${e.grudgeLeft.toFixed(1)}s` : '(없음)'), kv('위협 기억', e.threatNow() ? `(${Math.round(e.threatNow().x)}, ${Math.round(e.threatNow().y)})  ${Math.max(0, e.threatNow().until - e.age).toFixed(1)}s` : '(없음)'),
+          kv('시야', `${Math.round(750 * e.sightMul / e.def.fov)}px  유지 ${e.holdLeft.toFixed(1)}s  판단 ${e.decLeft.toFixed(1)}s`), kv('나이', e.age.toFixed(1) + 's' + (e.level < e.targetLv ? `  가속 x${Math.round(e.catchMul())} (목표 Lv${e.targetLv})` : '')));
+      }
+    } else if (game.crashers.includes(e)) { L.push(kv('종류', '크래셔'), kv('체력', `${Math.round(e.hp)}/${e.maxHp}`), kv('위치', `${Math.round(e.x)}, ${Math.round(e.y)}`), kv('속도', f1(Math.hypot(e.vx, e.vy)) + 'px/s'), kv('목표', e.target ? (e.target.name || e.target.kind) : '(없음)')); }
+    else { L.push(kv('종류', '도형 ' + e.kind), kv('체력', `${Math.round(e.hp)}/${Math.round(e.maxHp)}`), kv('반지름', f1(e.r)), kv('위치', `${Math.round(e.x)}, ${Math.round(e.y)}`), kv('소속', e.nest ? '둥지' : e.cl ? '군집 ' + (game.clusters.indexOf(e.cl) + 1) : '일반'), kv('점수', e.s.xp), kv('몸통 피해', e.dmg)); }
+    return L;
+  }
+  addTab({
+    id: 'inspect', title: 'INSPECT', build(el) {
+      const hint = E('div', { class: 'note', text: '화면에서 Shift+클릭으로 탱크·봇·크래셔·도형을 선택하세요.' }), box = E('div', { class: 'sec' });
+      const E1 = () => SEL.e && SEL.e.hp > 0 && !SEL.e.gone ? SEL.e : null;
+      const bar = row('', act('따라가기', () => { const e = E1(); if (e) { setFree(true); devCam.follow = e; } }), act('해제', () => { SEL.e = null; }),
+        act('체력 가득', () => { const e = E1(); if (e) e.hp = e.maxHp; }), act('처치', () => { const e = E1(); if (e) e.hp = 0; }), act('제거', () => { const e = E1(); if (e) { e.gone = true; e.hp = 0; } }));
+      const bar2 = row('', act('무적 토글', () => { const e = E1(); if (e && (e === game.player || e.isBot)) e.god = !e.god; }), act('봇 정지/재개', () => { const e = E1(); if (e && e.isBot) e.frozen = !e.frozen; }), act('플레이어를 여기로', () => { const e = E1(), p = game.player; if (e) { p.x = e.x + 120; p.y = e.y; p.vx = p.vy = 0; } }));
+      el.append(hint, bar, bar2, box);
+      return { update() {
+        box.textContent = ''; const e = E1();
+        if (!SEL.e) { hint.style.display = 'block'; return; } hint.style.display = 'none';
+        if (!e) { box.append(E('div', { class: 'ln', text: '(선택한 개체가 사라졌습니다)' })); return; }
+        for (const [k, v] of describe(e)) box.append(E('div', { class: 'ln', text: k.padEnd(10) + ' ' + v }));
+      } };
+    },
+  });
+
+  DEV.api = { sync, addTab, select, tabs: TABS, setSide, mouse: api_mouse, view, devCam, SEL };
   sync();
 })();

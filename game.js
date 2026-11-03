@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = '94b2163', BUILD_AT = '2026-11-03T11:06Z'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시와, 그 해시가 바뀐 시각(UTC)) */
+const BUILD_ID = 'e057317', BUILD_AT = '2026-11-03T11:14Z'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시와, 그 해시가 바뀐 시각(UTC)) */
 
 const CFG = {
   world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
@@ -232,7 +232,8 @@ class Input {
     addEventListener('keyup', e => { this.keys[e.code] = false; });
     addEventListener('blur', () => { this.keys = {}; this.down = false; });
     cv.addEventListener('mousemove', e => { this.mx = e.clientX; this.my = e.clientY; });
-    cv.addEventListener('mousedown', e => { this.mx = e.clientX; this.my = e.clientY; if (!game.ui.click(e.clientX, e.clientY)) this.down = true; });
+    cv.addEventListener('contextmenu', e => { if (game.dev) e.preventDefault(); }); // 개발자 모드: 우클릭 메뉴 막음(자유 카메라 드래그용)
+    cv.addEventListener('mousedown', e => { this.mx = e.clientX; this.my = e.clientY; if (game.dev && DEV.api && DEV.api.mouse && DEV.api.mouse(e)) return; /* 개발자: Shift+클릭 선택, 자유 카메라 드래그 */ if (!game.ui.click(e.clientX, e.clientY)) this.down = true; });
     addEventListener('mouseup', () => { this.down = false; });
     cv.addEventListener('wheel', e => { if (!game.dev) return; e.preventDefault(); game.cam.zoomMul = clamp(game.cam.zoomMul * (e.deltaY > 0 ? 0.9 : 1.1), 0.1, 3); }, { passive: false }); // 개발자 모드: 휠로 시야 확대/축소
   }
@@ -1038,11 +1039,11 @@ class Game {
     { this.nTanks += (this.plannedTanks() - this.nTanks) * (1 - Math.exp(-dt / CFG.map.smooth)); // 실제 탱크 수가 아닌 계획된 탱크 수를 따라 시작 직후(봇이 한 마리씩 소환되는 동안)에 맵이 줄지 않음
     const tgt = mapTarget(this.nTanks), stp = CFG.map.rate * dt; setMapSize(MAP.size + clamp(tgt - MAP.size, -stp, stp)); } // 탱크 수는 30초 평균으로 완만하게 반영(봇이 잠깐 죽어도 맵이 출렁이지 않음) // 맵은 전체 탱크 수(플레이어+봇)에 맞춰 서서히 확대/축소
     if (p.alive && p.invT > 0) { p.invT -= dt; const [iax, iay] = inp.axis(); if (iax || iay || inp.fire) p.invT = 0; } // 이동하거나 발사하면 스폰 무적 해제 (diep.io: 스폰 후 최대 10초 무적)
-    if (p.alive) { p.move(dt, inp); this.cam.follow(p, dt, p.level, p.fov); p.aim(inp, this.cam); p.shoot(dt, inp, this); }
+    if (p.alive) { p.move(dt, inp); this.cam.follow(p, dt, p.level, p.fov); if (this.dev && this.devCamHook) this.devCamHook(dt); /* 개발자: 자유 카메라 */ p.aim(inp, this.cam); p.shoot(dt, inp, this); }
     else { // 사망/시작 화면: 처치한 대상을 부드럽게 따라가고, 대상이 사라지면 마지막 위치에 카메라가 머무름
       const t = this.spec && this.spec.hp > 0 && !this.spec.gone ? this.spec : null;
       if (t) { this.specPos.x = t.x; this.specPos.y = t.y; }
-      this.cam.follow(this.specPos, dt, t && t.level ? t.level : p.level, t && t.fov ? t.fov : p.fov, 4);
+      this.cam.follow(this.specPos, dt, t && t.level ? t.level : p.level, t && t.fov ? t.fov : p.fov, 4); if (this.dev && this.devCamHook) this.devCamHook(dt);
     }
     for (const s of this.shapes) {
       s.vx += (s.dx - s.vx) * Math.min(1, 1.5 * dt); s.vy += (s.dy - s.vy) * Math.min(1, 1.5 * dt);
@@ -1132,7 +1133,7 @@ class Game {
     for (const b of this.bullets) if (cam.visible(b.x, b.y, b.r)) { if (b.trap) poly(ctx, b.x, b.y, b.r * 1.15, 3, b.ang, b.col, b.out); else disc(ctx, b.x, b.y, b.r, b.col, b.out); } // 트랩은 삼각형
     for (const e of this.bots) { if (!cam.visible(e.x, e.y, e.r + 30)) continue; if (e.invT > 0) ctx.globalAlpha = 0.45 + 0.25 * Math.sin(this.clock * 8 + e.x); drawTank(ctx, e, e.col, e.out, true); ctx.globalAlpha = 1; if (e.hp < e.maxHp) hpbar(ctx, e); label(ctx, this.dev && this.devPanel ? `${e.name}  ${e.pt.n}  ${e.stateTag()}${e.rTag()}` : e.name, e.x, e.y - e.r - 28, 13, 'center'); label(ctx, `Lv ${e.level} ${e.def.n}`, e.x, e.y - e.r - 13, 11, 'center'); } // 개발자 모드(F2 패널이 켜져 있을 때)에는 이름 옆에 성격 유형, 현재 행동, 전투 우위 R을 함께 표시
     if (p.alive) { if (p.invT > 0) ctx.globalAlpha = 0.45 + 0.25 * Math.sin(this.clock * 8); drawTank(ctx, p, p.col, p.out, true); ctx.globalAlpha = 1; if (p.hp < p.maxHp) hpbar(ctx, p); label(ctx, p.name, p.x, p.y - p.r - 14, 14, 'center'); } // 무적 중에는 반투명하게 깜빡임
-    this.fx.draw(ctx, cam); ctx.restore();
+    this.fx.draw(ctx, cam); if (this.dev && this.devDraw) this.devDraw(ctx, cam); /* 개발자: 월드 위 표시 */ ctx.restore();
     if (this.state === 'play') this.ui.draw(ctx, this.W, this.H);
     else if (this.state === 'dead' && this.spec && this.spec.hp > 0) label(ctx, 'Spectating ' + (this.spec.name || this.spec.kind), this.W / 2, 36, 16, 'center');
   }

@@ -19,7 +19,7 @@ let chromium; try { ({ chromium } = require('playwright')); } catch (e) { consol
   const setv = (id, v, ev) => pg.evaluate(([i, x, e]) => { const el = document.getElementById(i); if (el.type === 'checkbox') el.checked = x; else el.value = x; el.dispatchEvent(new Event(e || 'change')); }, [id, v, ev]);
   const click = text => pg.evaluate(t => { const b = [...document.querySelectorAll('#devpanel .act')].find(x => x.textContent === t); if (!b) throw new Error('버튼 없음: ' + t); b.click(); }, text);
   const gs = f => pg.evaluate(f);
-  chk((await gs(() => [...document.querySelectorAll('#devpanel .tabs button')].map(b => b.textContent))).join() === 'INFO,PLAYER,BOTS,WORLD', '탭: INFO, PLAYER, BOTS, WORLD');
+  chk((await gs(() => [...document.querySelectorAll('#devpanel .tabs button')].map(b => b.textContent))).join() === 'INFO,PLAYER,BOTS,WORLD,VIEW,INSPECT', '탭: INFO, PLAYER, BOTS, WORLD, VIEW, INSPECT');
   await tab('player'); await setv('dev-p-cls', 'trapper'); chk(await gs(() => game.player.cls) === 'trapper', 'PLAYER: 클래스 직접 선택(Trapper, 레벨 조건 없음)');
   await setv('dev-p-lvn', 30); chk(await gs(() => game.player.level) === 30, 'PLAYER: 레벨 30으로 설정'); await setv('dev-p-lv', 12, 'input'); chk(await gs(() => game.player.level) === 12, 'PLAYER: 슬라이더로 레벨 12');
   await setv('dev-p-st-reload', 7); chk(await gs(() => game.player.up.reload) === 7, 'PLAYER: 능력치 입력(Reload 7)');
@@ -37,6 +37,24 @@ let chromium; try { ({ chromium } = require('playwright')); } catch (e) { consol
   const nc0 = await gs(() => game.crashers.length); await setv('dev-w-cn', 3); const crBtns = await gs(() => [...document.querySelectorAll('#devpanel .act')].filter(b => b.textContent === '생성').length); await pg.evaluate(() => [...document.querySelectorAll('#devpanel .act')].filter(b => b.textContent === '생성')[1].click()); chk(await gs(() => game.crashers.length) === nc0 + 3, 'WORLD: 크래셔 3마리 생성 (생성 버튼 ' + crBtns + '개)');
   await click('군집 생성'); await pg.waitForTimeout(400); chk((await gs(() => document.querySelectorAll('#devpanel .row .act.sm').length)) >= 1, 'WORLD: 군집 목록에 종료 버튼');
   await pg.evaluate(() => { game.bullets.push({ trap: true, x: 0, y: 0, vx: 0, vy: 0, r: 5, pen: 1, life: 5, owner: {} }, { x: 0, y: 0, vx: 0, vy: 0, r: 5, pen: 1, life: 5, owner: {} }); }); await click('트랩만'); chk(await gs(() => game.bullets.filter(b => b.trap).length) === 0, 'WORLD: 트랩만 삭제'); await click('총알 전부'); chk(await gs(() => game.bullets.length) === 0, 'WORLD: 총알 전부 삭제');
+  // ---- 단계 3: VIEW(오버레이·카메라) / INSPECT(개체 선택) ----
+  await pg.evaluate(() => { game.player.god = true; }); /* 점검 중 플레이어가 죽어 화면이 가려지지 않게 */
+  await tab('view');
+  const arcs = () => pg.evaluate(() => { let n = 0; const o = CanvasRenderingContext2D.prototype.arc; CanvasRenderingContext2D.prototype.arc = function (...a) { n++; return o.apply(this, a); }; game.draw(); CanvasRenderingContext2D.prototype.arc = o; return n; });
+  const base = await arcs(); await setv('dev-v-radius', true); const withRadius = await arcs(); chk(withRadius > base, 'VIEW: 충돌 반경을 켜면 그려지는 원이 늘어남 (' + base + ' → ' + withRadius + ')'); await setv('dev-v-radius', false);
+  chk((await arcs()) === base, 'VIEW: 끄면 원래대로(비용 0)');
+  await pg.evaluate(() => { const p = game.player, b = new Bot(p.x - 260, p.y, 12, 'TestBot', 12); b.idleT = 0; b.invT = 0; game.bots.push(b); window.__tb = b; });
+  await click('전부 켜기'); await pg.waitForTimeout(900); chk((await gs(() => ['radius', 'vel', 'target', 'sight', 'threat', 'clusters', 'owners', 'grid', 'exclusion'].every(k => DEV.api.view[k]))), 'VIEW: 전부 켜기');
+  chk(errs.length === 0, 'VIEW: 오버레이를 모두 켠 채 그려도 오류 없음'); await click('전부 끄기');
+  const sp = await gs(() => { const c = game.cam, b = window.__tb; b.frozen = true; return [(b.x - c.x) * c.zoom + c.w / 2, (b.y - c.y) * c.zoom + c.h / 2]; });
+  await pg.keyboard.down('Shift'); await pg.mouse.click(sp[0], sp[1]); await pg.keyboard.up('Shift'); await pg.waitForTimeout(500);
+  chk(await gs(() => DEV.api.SEL.e === window.__tb), 'INSPECT: Shift+클릭으로 봇 선택'); chk(!(await gs(() => game.input.down)), 'INSPECT: Shift+클릭은 사격으로 이어지지 않음');
+  const insTxt = await gs(() => document.getElementById('devpanel').innerText); chk(insTxt.includes('TestBot') && insTxt.includes('성격') && insTxt.includes('능력치'), 'INSPECT: 선택한 봇 정보 표시(이름, 성격, 능력치)');
+  await click('따라가기'); await pg.evaluate(() => { window.__tb.x += 700; }); await pg.waitForTimeout(1800);
+  chk(await gs(() => DEV.api.devCam.on && Math.abs(game.cam.x - window.__tb.x) < 40), 'INSPECT: 따라가기 중 카메라가 선택한 봇을 따라감');
+  await tab('view'); await click('플레이어로 복귀'); await pg.waitForTimeout(300); chk(!(await gs(() => DEV.api.devCam.on)), 'VIEW: 플레이어로 복귀');
+  await setv('dev-v-free', true); const cx0 = await gs(() => DEV.api.devCam.x); await pg.mouse.move(300, 300); await pg.mouse.down({ button: 'right' }); await pg.mouse.move(400, 300, { steps: 4 }); await pg.mouse.up({ button: 'right' });
+  const cx1 = await gs(() => DEV.api.devCam.x); chk(cx1 < cx0 - 20, 'VIEW: 자유 카메라 오른쪽 드래그로 이동 (' + Math.round(cx0) + ' → ' + Math.round(cx1) + ')'); chk(!(await gs(() => game.input.down)), 'VIEW: 오른쪽 드래그는 사격으로 이어지지 않음'); await click('플레이어로 복귀');
   await tab('info');
   await pg.close(); pg = await open(true); await pg.keyboard.press('F2'); await pg.waitForTimeout(500); s = await st(pg); chk(s.dev && s.state === 'failed', 'dev.js를 못 불러와도(차단) 개발자 모드는 켜지고 대체 패널을 씀'); await pg.close();
   // ---- 버전 표시 ----
