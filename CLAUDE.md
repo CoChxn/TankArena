@@ -3,7 +3,7 @@
 HTML/CSS/바닐라 JS(Canvas). 외부 에셋과 빌드 도구는 없고, `index.html`을 브라우저로 열면 실행된다. 답변은 한국어로 한다.
 
 ## 파일
-- `index.html`, `style.css`, `game.js`: 게임 전체(로직은 `game.js` 하나, 설정은 위쪽 `CFG`).
+- `index.html`, `style.css`, `game.js`: 게임 전체(로직은 `game.js` 하나, 설정은 위쪽 `CFG`). `dev.js`: 개발자 모드 화면(선택 로드).
 - `tests/run.js`: 가짜 DOM으로 `game.js`를 화면 없이 돌리는 시뮬레이션 테스트(Node.js만 필요). `tests/hdr.js`, `seed.js`, `t_*.js`는 이전 단계의 보조 도구.
 - `docs/build_doc.js`: 게임 작동 원리 문서(`Tank_Arena_Mechanics_Review.docx`) 생성기. `npm install` 후 `npm run docs`(= `node docs/build_doc.js`; 같은 폴더 `../game.js`를 읽는다). 문서는 `docs/Tank_Arena_Mechanics_Review.docx`로 저장소 안에 생성된다(`DOC_OUT` 환경변수로 경로 변경).
 - `docs/PENDING.md`: 문서에 아직 반영하지 않은 작은 수정 목록(문서의 기준 해시 포함).
@@ -14,7 +14,8 @@ HTML/CSS/바닐라 JS(Canvas). 외부 에셋과 빌드 도구는 없고, `index.
 모든 값은 설정으로 빼고, 큰 행동 변경에는 이전 동작으로 돌아가는 스위치를 둔다(예: `botFight.mode = 'legacy'`, `botFight.fleeMemory = 0`).
 
 ## 개발자 모드
-`\` 키로 켜면(레벨 +1) F2로 패널을 토글하고, 휠로 줌한다. 화면의 봇 이름 옆에 `유형  행동 R값`이 표시된다.
+누구나 쓸 수 있다(주소 조건 없음). **F2**로 켜고(패널 열림) 다시 누르면 패널만 숨기며, **Shift+F2**로 끈다. `\` 키는 꺼져 있으면 켜고 레벨 +1(누를 때마다). 휠로 줌한다. 화면의 봇 이름 옆에 `유형  행동 R값`이 표시된다.
+개발자 기능은 `dev.js`(처음 F2나 `\`를 누를 때 불러옴, HTML 탭 패널)에 있고 `game.js`에는 로더와 훅(`DEV`, `devKey`, `UI.devLines`)만 둔다. `dev.js`가 없으면 캔버스 글씨 대체 패널로 동작한다. 단계별 개편(PLAYER·BOTS·WORLD 도구, 오버레이·인스펙터, CONFIG, 시간·로그)이 진행 중이다.
 
 ## 테스트
 - 게임 폴더(`tank-arena`)에서 `node tests/run.js <시나리오[,...]> [--seed N --runs N --min N --set 경로=값 --game 경로 --save 이름 --compare 이름]`. 목록은 `node tests/run.js --list`.

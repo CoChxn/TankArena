@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = '51b9c4f'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
+const BUILD_ID = '3cb501f'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시) */
 
 const CFG = {
   world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
@@ -199,15 +199,31 @@ const ANIMALS = ['Aardvark', 'Albatross', 'Alpaca', 'Badger', 'Bat', 'Bear', 'Be
 const fmt = n => n < 1000 ? String(Math.floor(n)) : n < 1e6 ? (n / 1000).toFixed(1) + 'k' : (n / 1e6).toFixed(2) + 'm';
 
 /* ============ Input ============ */
+/* ============ 개발자 모드 로더 ============ */
+const DEV = { state: 'idle', q: [], api: null }; /* 개발자 모드(dev.js)는 처음 F2나 \를 누를 때 불러옴. state: idle / loading / ready / failed */
+function devLoad(done) {
+  if (DEV.state === 'ready' || DEV.state === 'failed') { if (done) done(); return; }
+  if (done) DEV.q.push(done);
+  if (DEV.state === 'loading') return;
+  DEV.state = 'loading'; const end = ok => { DEV.state = ok ? 'ready' : 'failed'; if (!ok) console.warn('dev.js를 불러오지 못해 간단한 개발자 패널을 씁니다.'); for (const f of DEV.q.splice(0)) f(); };
+  if (typeof document === 'undefined' || !document.createElement || !document.head) { end(false); return; }
+  const sc = document.createElement('script'); sc.src = 'dev.js'; sc.onload = () => end(true); sc.onerror = () => end(false); document.head.appendChild(sc);
+}
+function devSync() { devLoad(() => { if (DEV.api) DEV.api.sync(); }); } /* 상태(game.dev, game.devPanel)를 화면에 반영 */
+function devKey(shift) { /* F2: 켜기 + 패널 열기 -> 다시 누르면 패널만 숨김/표시, Shift+F2: 개발자 모드 끄기 */
+  if (shift) { game.dev = false; game.devPanel = false; } else if (!game.dev) { game.dev = true; game.devPanel = true; } else game.devPanel = !game.devPanel;
+  devSync();
+}
+
 class Input {
   constructor(cv) {
     this.keys = {}; this.mx = 0; this.my = 0; this.down = false; this.auto = false;
     addEventListener('keydown', e => { // e.code 사용: 한글 IME 상태에서도 WASD 동작
-      if (e.target && e.target.tagName === 'INPUT') return; // 닉네임 입력 중에는 게임 키 무시
+      if (e.target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable)) return; // 닉네임·개발자 패널 입력 중에는 게임 키 무시
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F2'].includes(e.code)) e.preventDefault();
       if (!e.repeat) {
         if (e.code === 'KeyE' && game.state === 'play') this.auto = !this.auto; // 플레이 중에만 오토파이어 토글
-        if (e.code === 'F2' && game.dev) game.devPanel = !game.devPanel; // 개발자 정보 패널 켜기/끄기
+        if (e.code === 'F2') devKey(e.shiftKey); // 개발자 모드: F2 켜기·패널 토글, Shift+F2 끄기
         if (e.code === 'Backslash') game.devLevelUp(); // 개발자용: \ 키로 1레벨 상승
         const m = /^Digit([1-8])$/.exec(e.code); if (m) game.upgrade(+m[1] - 1);
       }
@@ -574,7 +590,7 @@ class UI {
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x, y, w, n * lh + 10);
     for (let i = 0; i < n; i++) { const L = i === n - 1 && n < lines.length ? { t: `... +${lines.length - n + 1} more` } : lines[i]; ctx.fillStyle = L.h ? '#ffe05a' : L.c || '#fff'; ctx.fillText(L.t, x + 8, y + 5 + i * lh); }
   }
-  drawDev(ctx, W, H) { // 개발에 도움이 되는 상태 정보 (F2로 켜고 끔)
+  devLines() { // 개발에 도움이 되는 상태 정보의 줄 목록 {bl: 봇, wl: 월드·군집}. dev.js의 INFO 탭과 대체 캔버스 패널이 같이 씀
     const g = this.g, p = g.player, B = CFG.bots, K = CFG.clusters, N = CFG.nest, pl = p.alive ? p.level : 1;
     const H1 = t => ({ t, h: 1 }), L1 = (t, c) => ({ t, c });
     // --- 오른쪽: 봇 ---
@@ -587,7 +603,6 @@ class UI {
       const st = o.stateTag(), d = Math.round(Math.hypot(o.x - p.x, o.y - p.y));
       bl.push(L1(`${o.name.slice(0, 9).padEnd(9)} Lv${String(o.level).padStart(2)}${o.level < o.targetLv ? '>' + String(o.targetLv).padStart(2) : '   '} ${o.def.n.slice(0, 5).padEnd(5)} ${fmt(o.score).padStart(6)} hp${String(Math.round(o.hp / o.maxHp * 100)).padStart(3)}% ${st.padEnd(6)} d${d}${o.level < o.targetLv ? ' x' + Math.round(o.catchMul()) : ''} ${o.pt.n} s${o.skill.toFixed(2)}${o.rTag()}`));
     }
-    this.panel(ctx, -(W - 16), 282, H - 282 - 176, bl);
     // --- 왼쪽: 월드 / 군집 ---
     let free = 0, clu = 0, nestP = 0, alpha = 0, hex = 0, hexOut = 0; for (const s of g.shapes) { if (s.nest) { if (s.kind === 'alpha pentagon') alpha++; else if (s.kind === 'hexagon') hex++; else nestP++; } else if (s.cl) clu++; else { free++; if (s.kind === 'hexagon') hexOut++; } }
     const freeT = Math.round(CFG.shapeDensity * MAP.size * MAP.size), want = Math.min(K.maxCount, MAP.size * MAP.size / K.areaPerCluster);
@@ -600,7 +615,10 @@ class UI {
       H1('CLUSTERS'),
       L1(`count ${g.clusters.length}  want ${want.toFixed(2)} (area / ${(K.areaPerCluster / 1e6).toFixed(0)}M)  max ${K.maxCount}`)];
     g.clusters.forEach((c, i) => wl.push(L1(`#${i + 1} ${c.type.padEnd(8)} r${Math.round(c.r)} n ${String(c.n).padStart(2)}/${c.target} sp ${c.spawned}/${c.target} age ${Math.round(c.age)}/${Math.round(c.life)}s @${Math.round(c.x)},${Math.round(c.y)}`)));
-    this.panel(ctx, 16, 250, H - 250 - 262, wl);
+    return { bl, wl };
+  }
+  drawDev(ctx, W, H) { // dev.js 없이 쓰는 대체 패널(캔버스 글씨)
+    const { bl, wl } = this.devLines(); this.panel(ctx, -(W - 16), 282, H - 282 - 176, bl); this.panel(ctx, 16, 250, H - 250 - 262, wl);
   }
   draw(ctx, W, H) {
     const g = this.g, p = g.player, rows = this.rows; rows.length = 0;
@@ -660,8 +678,8 @@ class UI {
     label(ctx, `HP ${Math.ceil(p.hp)} / ${Math.round(p.maxHp)}   Damage ${p.spec.dmg.toFixed(0)}   Reload ${p.reloadT.toFixed(2)}s   Speed ${Math.round(p.s.move * p.speedMul)}`, W / 2, 20, 13, 'center');
     label(ctx, 'WASD move · mouse aim · click/Space fire · E auto-fire' + (g.input.auto ? ' (ON)' : ''), W / 2, 40, 12, 'center');
     if (p.invT > 0) label(ctx, `Spawn protection ${Math.ceil(p.invT)}s - move or fire to end`, W / 2, H - 104, 13, 'center');
-    if (g.dev && g.devPanel) this.drawDev(ctx, W, H);
-    if (g.dev) label(ctx, `dev zoom x${g.cam.zoomMul.toFixed(2)} (mouse wheel) · F2: dev panel`, W / 2, 58, 12, 'center');
+    if (g.dev && g.devPanel && DEV.state === 'failed') this.drawDev(ctx, W, H); // dev.js를 못 불러왔을 때의 간단한 대체 패널
+    if (g.dev) label(ctx, `dev zoom x${g.cam.zoomMul.toFixed(2)} (mouse wheel) · F2: panel · Shift+F2: off`, W / 2, 58, 12, 'center');
     // Scoreboard: 제목 + 1위 대비 점수 비례 막대, 내 항목은 파란색
     const list = []; if (p.alive) list.push({ k: p, n: p.name, s: p.score, me: true, def: p.def });
     for (const b of g.bots) if (b.hp > 0) list.push({ k: b, n: b.name, s: b.score, me: false, def: b.def });
@@ -755,7 +773,7 @@ class Game {
   upgrade(i) { if (this.state === 'play' && this.player.alive) this.player.upgrade(i); }
   devLevelUp() { // 개발자용: 다음 레벨 점수까지 즉시 지급 (포인트는 33점 규칙대로)
     const p = this.player; if (this.state !== 'play' || !p.alive) return;
-    this.dev = true; // 한 번이라도 사용하면 개발자로 간주 (페이지를 새로고침하기 전까지 유지)
+    if (!this.dev) { this.dev = true; this.devPanel = true; } devSync(); // \ 키도 개발자 모드를 켬(Shift+F2로 끌 수 있음)
     if (p.level >= CFG.maxLevel) return;
     p.addXp(CFG.scoreAt[p.level + 1] - p.score);
   }
