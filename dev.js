@@ -321,6 +321,107 @@
     },
   });
 
-  DEV.api = { sync, addTab, select, tabs: TABS, setSide, mouse: api_mouse, view, devCam, SEL };
+  /* ---- CONFIG 탭: CFG 값 트리·즉시 변경·기본값 복원·변경 목록(JSON, --set 명령)·모드 스위치 ---- */
+  const CFG0 = JSON.parse(JSON.stringify(CFG)); /* 처음 열 때의 값 = 기본값(게임은 실행 중 CFG를 바꾸지 않음) */
+  const ptype = v => Array.isArray(v) ? 'arr' : v === null ? 'null' : typeof v;
+  const getAt = (root, parts) => { let o = root; for (const k of parts) { if (o === undefined || o === null) return undefined; o = o[k]; } return o; };
+  const jeq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const clone = v => JSON.parse(JSON.stringify(v));
+  const setAt = (parts, v) => { const par = getAt(CFG, parts.slice(0, -1)); par[parts[parts.length - 1]] = v; };
+  /* 반영 방식: live 즉시 / new 새로 생기는 개체부터 / recalc 탱크 값을 다시 계산(자동) / class 클래스를 다시 적용(자동) / newgame 새 게임부터 / reload 새로고침 후 / unknown 확인 안 됨 */
+  const TYPE_RULES = [
+    [/^classes\.[^.]+\.barrels/, 'class'],
+    [/^(bulletSpeedMul|bulletSizeMul|bulletLife|bulletHp|playerR|stats\.)/, 'recalc'], [/^classes\.[^.]+\.(dmg|pen|speed|reloadMul|rt|reload|fov)$/, 'recalc'],
+    [/^(botFx\.(fleeHp|fearGap|sight|chaseT|grudgeT|aimErr|stayBase|stayK|holdBase|holdK|grudgeW)$|botFight\.(thrMul|needBase|needBold)$|botTypes|botSkill|botBuild)/, 'new'], [/^clusters\.(density|growTime|rMin|rMax|life)$/, 'new'],
+    [/^(clusters\.startFill|spawnInvuln|respawnMode)$/, 'newgame'], [/^bots\.spawnIdle$/, 'new'], [/^(shapes\.[^.]+\.(c|o|n)|crashers\.[^.]+\.c)$/, 'reload'],
+    [/^(bulletRange|bodyPhys|recoil|trapMax|trapStop|hyperAfter|hyperRate|shapeGap|clashTol|maxLevel|scoreAt|botFx\.(flee|aim|wander)\.|botFight\.|shapeDensity|clusters\.(mode|refill|attractMin|release|areaPerCluster|maxCount|minGap|depleted)$|nest\.|map\.|bots\.|bulletClash|bulletPush|bulletDeflect|bulletMinSpeed|bulletBaseDmg|pushTank|pushShape|pushBullet|drag$|spawnInvuln|viewScale)/, 'live'],
+  ];
+  const typeOf = path => { for (const [re, t] of TYPE_RULES) if (re.test(path)) return t; return 'unknown'; };
+  const BADGE = { live: ['●', '#6ee06e', '바로 반영됩니다'], new: ['◐', '#ffd23c', '새로 생기는 개체(봇, 군집)부터 반영됩니다'], recalc: ['↻', '#6cc8ff', '바꾸면 모든 탱크의 값을 자동으로 다시 계산합니다'], class: ['↻', '#6cc8ff', '바꾸면 모든 탱크에 클래스를 다시 적용합니다'], newgame: ['▷', '#ffd23c', '새 게임부터 반영됩니다'], reload: ['⟳', '#ff8a6a', '새로고침해야 반영됩니다(지금은 값만 바뀜)'], unknown: ['·', '#888', '반영 방식을 확인하지 못했습니다(바로 반영되지 않을 수 있음)'] };
+  const OPTS = { 'bulletRange.mode': ['range', 'legacy'], 'bodyPhys.mode': ['tuned', 'legacy'], 'botFx.flee.mode': ['natural', 'legacy'], 'botFx.aim.mode': ['human', 'legacy'], 'botFx.wander.mode': ['natural', 'legacy'], 'clusters.mode': ['grow', 'legacy'], 'botFight.mode': ['power', 'legacy'], recoilMode: ['diep', 'legacy'], bulletClashMode: ['mass', 'instant'], 'bulletRange.target': ['tank', 'all'], 'clusters.release': ['free', 'zone'] };
+  const SWITCHES = ['bulletRange.mode', 'bodyPhys.mode', 'botFx.flee.mode', 'botFx.aim.mode', 'botFx.wander.mode', 'clusters.mode', 'botFight.mode', 'recoilMode', 'bulletClashMode'];
+  const tanksAll = () => [game.player, ...game.bots];
+  const afterChange = type => { try { if (type === 'recalc') for (const t of tanksAll()) t.recalc(); else if (type === 'class') for (const t of tanksAll()) t.setClass(t.cls); } catch (e) { console.warn('dev: 설정 적용 후 재계산 실패', e); } };
+  const cfgRows = []; /* 모든 값 행 {path, parts, type, kind, refresh(), el, def} */
+  function applyValue(parts, v, quiet) { /* 값 검증 후 CFG에 반영하고 자동 재계산. 성공 여부를 돌려줌 */
+    const path = parts.join('.'), cur = getAt(CFG, parts);
+    if (cur === undefined || ptype(cur) !== ptype(v)) return false;
+    if (typeof v === 'number' && !isFinite(v)) return false;
+    setAt(parts, v); if (!quiet) afterChange(typeOf(path)); return true;
+  }
+  const changes = () => { const out = []; for (const r of cfgRows) { const cur = getAt(CFG, r.parts); if (!jeq(cur, r.def)) out.push({ path: r.path, parts: r.parts, def: r.def, cur: clone(cur) }); } return out; };
+  const arrRoot = parts => { const k = parts.findIndex(x => /^\d+$/.test(x)); return k < 0 ? parts : parts.slice(0, k); }; /* 배열 칸 경로는 --set으로 쓸 수 없어 배열 전체로 내보냄 */
+  const exportMap = () => { const m = {}; for (const c of changes()) { const rp = arrRoot(c.parts); m[rp.join('.')] = clone(getAt(CFG, rp)); } return m; };
+  const shq = t => "'" + t.replace(/'/g, "'\\''") + "'";
+  const exportSet = () => Object.entries(exportMap()).map(([k, v]) => '--set ' + shq(k + '=' + JSON.stringify(v))).join(' ');
+
+  addTab({
+    id: 'config', title: 'CONFIG', build(el) {
+      cfgRows.length = 0;
+      const q = E('input', { id: 'dev-c-q', type: 'text', placeholder: '검색 (예: flee, bullet, clusters)' }); q.style.width = '190px';
+      const onlyCh = E('input', { id: 'dev-c-only', type: 'checkbox' });
+      const status = E('div', { class: 'note' }), io = E('textarea', { id: 'dev-c-io', rows: 4, spellcheck: 'false', placeholder: '여기에 변경 JSON을 붙여넣고 [붙여넣은 JSON 적용]' }); io.style.cssText = 'width:100%;font:inherit;background:#1d1d1d;color:#fff;border:1px solid #555;border-radius:3px;display:none;box-sizing:border-box';
+      const showIo = (text, keep) => { io.style.display = 'block'; if (text !== undefined) io.value = text; if (!keep) { io.focus(); io.select(); try { navigator.clipboard.writeText(io.value).catch(() => document.execCommand('copy')); } catch (e) { try { document.execCommand('copy'); } catch (e2) { /* 복사 실패: 선택된 상태이니 직접 복사 */ } } } };
+      const counts = E('span', { class: 'note' });
+      /* 모드 스위치 */
+      const swBox = E('div'), swSel = {};
+      for (const path of SWITCHES) { const parts = path.split('.'), cur = getAt(CFG, parts); if (cur === undefined) continue; const sl = selIn('dev-c-m-' + path, OPTS[path].map(o => [o, o]), cur); sl.onchange = () => { applyValue(parts, sl.value); sl.blur(); refreshAll(); }; swSel[path] = sl; const t = typeOf(path), b = BADGE[t]; swBox.append(E('div', { class: 'row' }, E('label', { text: path, style: { width: '170px', color: '#fff' } }), sl, E('span', { text: b[0], title: b[2], style: { color: b[1] } }))); }
+      const setAllSw = legacy => { for (const path of SWITCHES) { const o = OPTS[path], parts = path.split('.'); if (getAt(CFG, parts) === undefined) continue; const want = legacy ? o[1] : getAt(CFG0, parts); applyValue(parts, want, true); } afterChange('recalc'); refreshAll(); };
+      /* 트리 */
+      const tree = E('div'), nodes = [];
+      const mkBadge = path => { const t = typeOf(path), b = BADGE[t]; return E('span', { text: b[0], title: b[2], style: { color: b[1], width: '14px', textAlign: 'center', flex: '0 0 14px' } }); };
+      const leafRow = (key, path, parts, kind, editorEls, refresh, def) => {
+        const reset = act('↺', () => { applyValue(parts, clone(def)); refreshAll(); }, { class: 'act sm', title: '기본값으로' }); reset.style.visibility = 'hidden';
+        const row = E('div', { class: 'row', style: { flexWrap: 'nowrap', margin: '1px 0' } }, E('label', { text: key, title: path, style: { width: '150px', flex: '0 0 150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#ddd' } }), ...editorEls, mkBadge(path), reset);
+        const r = { path, parts, type: typeOf(path), kind, def: clone(def), el: row, refresh() { const changed = !jeq(getAt(CFG, parts), def); row.style.background = changed ? 'rgba(255,224,90,.14)' : ''; reset.style.visibility = changed ? 'visible' : 'hidden'; refresh(); } };
+        cfgRows.push(r); nodes.push({ el: row, path, leaf: r }); return row;
+      };
+      const mkLeaf = (key, parts, val) => {
+        const path = parts.join('.'), id = 'dev-c-' + path, def = getAt(CFG0, parts);
+        if (typeof val === 'number') { const i = E('input', { id, type: 'number', step: 'any', value: val }); i.style.width = '90px'; i.onchange = () => { const v = parseFloat(i.value); if (i.value.trim() === '' || !isFinite(v) || !applyValue(parts, v)) i.value = getAt(CFG, parts); else i.blur(); refreshAll(); }; return leafRow(key, path, parts, 'num', [i], () => { if (!typing(i)) i.value = getAt(CFG, parts); }, def); }
+        if (typeof val === 'boolean') { const c = E('input', { id, type: 'checkbox' }); c.checked = val; c.onchange = () => { applyValue(parts, c.checked); refreshAll(); }; return leafRow(key, path, parts, 'bool', [c], () => { c.checked = !!getAt(CFG, parts); }, def); }
+        if (typeof val === 'string') { const opts = OPTS[path]; const i = opts ? selIn(id, opts.map(o => [o, o]), val) : E('input', { id, type: 'text', value: val }); if (!opts) i.style.width = '120px'; i.onchange = () => { applyValue(parts, i.value); i.blur(); refreshAll(); }; return leafRow(key, path, parts, 'str', [i], () => { if (!typing(i)) i.value = getAt(CFG, parts); }, def); }
+        if (Array.isArray(val) && val.length <= 8 && val.every(x => typeof x === 'number')) { const ins = val.map((x, k) => { const i = E('input', { id: id + '-' + k, type: 'number', step: 'any', value: x }); i.style.width = '58px'; i.onchange = () => { const cur = clone(getAt(CFG, parts)), v = parseFloat(i.value); if (i.value.trim() === '' || !isFinite(v)) { i.value = cur[k]; return; } cur[k] = v; applyValue(parts, cur); i.blur(); refreshAll(); }; return i; }); return leafRow(key, path, parts, 'numarr', ins, () => { const cur = getAt(CFG, parts); ins.forEach((i, k) => { if (!typing(i)) i.value = cur[k]; }); }, def); }
+        /* 그 밖의 값(긴 배열, 문자열 배열 등)은 JSON 텍스트로 */
+        const ta = E('input', { id, type: 'text', value: JSON.stringify(val) }); ta.style.width = '170px'; ta.onchange = () => { try { const v = JSON.parse(ta.value); if (!applyValue(parts, v)) throw new Error('형식 불일치'); ta.blur(); } catch (e) { ta.value = JSON.stringify(getAt(CFG, parts)); } refreshAll(); };
+        return leafRow(key, path, parts, 'json', [ta], () => { if (!typing(ta)) ta.value = JSON.stringify(getAt(CFG, parts)); }, def);
+      };
+      const isPlain = v => v && typeof v === 'object' && !Array.isArray(v);
+      const walk = (box, obj, parts, depth) => {
+        const keys = Array.isArray(obj) ? obj.map((_, i) => String(i)) : Object.keys(obj), kids = [];
+        for (const k of keys) {
+          const v = obj[k], p2 = parts.concat(k), isNumArr = Array.isArray(v) && v.length <= 8 && v.every(x => typeof x === 'number');
+          if (typeof v === 'function' || v === undefined) continue;
+          if ((isPlain(v) || (Array.isArray(v) && !isNumArr && v.some(x => isPlain(x)))) ) {
+            const d = E('details', { class: 'cfgd' }), sm = E('summary', { text: k + (Array.isArray(v) ? `  [${v.length}]` : '') }); d.append(sm); sm.style.cssText = 'cursor:pointer;color:#ffe05a;margin:2px 0'; const inner = E('div'); inner.style.marginLeft = '10px'; d.append(inner);
+            const sub = walk(inner, v, p2, depth + 1); nodes.push({ el: d, group: true, kids: sub, path: p2.join('.') }); box.append(d); kids.push(nodes[nodes.length - 1]);
+          } else { const row = mkLeaf(k, p2, v); box.append(row); kids.push(nodes[nodes.length - 1]); }
+        }
+        return kids;
+      };
+      const rootKids = walk(tree, CFG, [], 0);
+      const filter = () => {
+        const s = q.value.trim().toLowerCase(), only = onlyCh.checked;
+        const vis = n => { if (n.leaf) { const r = n.leaf, ok = (!s || r.path.toLowerCase().includes(s)) && (!only || !jeq(getAt(CFG, r.parts), r.def)); n.el.style.display = ok ? '' : 'none'; return ok; } let any = false; for (const c of n.kids) if (vis(c)) any = true; n.el.style.display = any || (!s && !only) ? '' : 'none'; if (s || only) n.el.open = any; return any; };
+        for (const n of rootKids) vis(n);
+      };
+      q.oninput = filter; onlyCh.onchange = filter;
+      const refreshAll = () => { let ch = 0; for (const r of cfgRows) { r.refresh(); if (!jeq(getAt(CFG, r.parts), r.def)) ch++; } for (const path in swSel) { if (!typing(swSel[path])) swSel[path].value = getAt(CFG, path.split('.')); } counts.textContent = `변경 ${ch}개 / 값 ${cfgRows.length}개`; if (onlyCh.checked) filter(); };
+      const leg = E('div', { class: 'note' }); leg.append('반영 방식: ', ...Object.entries(BADGE).filter(([k]) => k !== 'class').flatMap(([k, b]) => { const n = { live: '즉시', new: '새 개체부터', recalc: '자동 재계산', newgame: '새 게임', reload: '새로고침', unknown: '미확인' }[k]; return [E('span', { text: b[0], style: { color: b[1] } }), ` ${n}  `]; }));
+      el.append(
+        E('h4', { text: '모드 스위치 (이전 방식 ↔ 새 방식)' }), swBox, row('', act('전부 이전 방식(legacy)', () => setAllSw(true)), act('전부 기본으로', () => setAllSw(false))),
+        E('h4', { text: '값 찾기 · 변경 목록' }), row('', q, E('label', { text: '변경만', style: { width: 'auto' } }), onlyCh, counts),
+        row('', act('변경 JSON 복사', () => { showIo(JSON.stringify(exportMap(), null, 1)); status.textContent = '변경 JSON을 복사했습니다(복사가 안 되면 아래 칸의 선택된 글자를 직접 복사)'; }),
+          act('--set 명령 복사', () => { showIo(exportSet() || '(변경 없음)'); status.textContent = '테스트 도구용 --set 인자를 복사했습니다: node tests/run.js <시나리오> ' + (exportSet() ? '...' : ''); }),
+          act('JSON 붙여넣기', () => { showIo('', true); io.focus(); status.textContent = '아래 칸에 {"경로": 값, ...} 형태의 JSON을 붙여넣고 [붙여넣은 JSON 적용]'; }),
+          act('붙여넣은 JSON 적용', () => { try { const m = JSON.parse(io.value); let ok = 0, bad = []; for (const [k, v] of Object.entries(m)) { if (applyValue(k.split('.'), v, true)) ok++; else bad.push(k); } afterChange('recalc'); afterChange('class'); refreshAll(); status.textContent = `${ok}개 적용` + (bad.length ? `, 실패(경로나 형식이 다름): ${bad.join(', ')}` : ''); } catch (e) { status.textContent = 'JSON 형식 오류: ' + e.message; } })),
+        row('', act('전부 기본값으로', () => { for (const c of changes()) applyValue(c.parts, clone(c.def), true); afterChange('recalc'); afterChange('class'); refreshAll(); status.textContent = '모두 기본값으로 되돌렸습니다'; })),
+        io, status, leg, E('div', { class: 'note', text: '값을 바꾸고 Enter 또는 다른 곳을 누르면 적용됩니다. 노란 줄 = 기본값과 다름, ↺ = 그 값만 되돌리기.' }), tree);
+      filter(); refreshAll();
+      return { update() { refreshAll(); } };
+    },
+  });
+
+  DEV.api = { sync, addTab, select, tabs: TABS, setSide, mouse: api_mouse, view, devCam, SEL, cfg: { CFG0, changes, exportMap, exportSet, applyValue, typeOf } };
   sync();
 })();

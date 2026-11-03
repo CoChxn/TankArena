@@ -19,7 +19,7 @@ let chromium; try { ({ chromium } = require('playwright')); } catch (e) { consol
   const setv = (id, v, ev) => pg.evaluate(([i, x, e]) => { const el = document.getElementById(i); if (el.type === 'checkbox') el.checked = x; else el.value = x; el.dispatchEvent(new Event(e || 'change')); }, [id, v, ev]);
   const click = text => pg.evaluate(t => { const b = [...document.querySelectorAll('#devpanel .act')].find(x => x.textContent === t); if (!b) throw new Error('버튼 없음: ' + t); b.click(); }, text);
   const gs = f => pg.evaluate(f);
-  chk((await gs(() => [...document.querySelectorAll('#devpanel .tabs button')].map(b => b.textContent))).join() === 'INFO,PLAYER,BOTS,WORLD,VIEW,INSPECT', '탭: INFO, PLAYER, BOTS, WORLD, VIEW, INSPECT');
+  chk((await gs(() => [...document.querySelectorAll('#devpanel .tabs button')].map(b => b.textContent))).join() === 'INFO,PLAYER,BOTS,WORLD,VIEW,INSPECT,CONFIG', '탭: INFO, PLAYER, BOTS, WORLD, VIEW, INSPECT, CONFIG');
   await tab('player'); await setv('dev-p-cls', 'trapper'); chk(await gs(() => game.player.cls) === 'trapper', 'PLAYER: 클래스 직접 선택(Trapper, 레벨 조건 없음)');
   await setv('dev-p-lvn', 30); chk(await gs(() => game.player.level) === 30, 'PLAYER: 레벨 30으로 설정'); await setv('dev-p-lv', 12, 'input'); chk(await gs(() => game.player.level) === 12, 'PLAYER: 슬라이더로 레벨 12');
   await setv('dev-p-st-reload', 7); chk(await gs(() => game.player.up.reload) === 7, 'PLAYER: 능력치 입력(Reload 7)');
@@ -55,6 +55,22 @@ let chromium; try { ({ chromium } = require('playwright')); } catch (e) { consol
   await tab('view'); await click('플레이어로 복귀'); await pg.waitForTimeout(300); chk(!(await gs(() => DEV.api.devCam.on)), 'VIEW: 플레이어로 복귀');
   await setv('dev-v-free', true); const cx0 = await gs(() => DEV.api.devCam.x); await pg.mouse.move(300, 300); await pg.mouse.down({ button: 'right' }); await pg.mouse.move(400, 300, { steps: 4 }); await pg.mouse.up({ button: 'right' });
   const cx1 = await gs(() => DEV.api.devCam.x); chk(cx1 < cx0 - 20, 'VIEW: 자유 카메라 오른쪽 드래그로 이동 (' + Math.round(cx0) + ' → ' + Math.round(cx1) + ')'); chk(!(await gs(() => game.input.down)), 'VIEW: 오른쪽 드래그는 사격으로 이어지지 않음'); await click('플레이어로 복귀');
+  // ---- 단계 4: CONFIG ----
+  await tab('config'); const nrows = await gs(() => document.querySelectorAll('#devpanel .body, #devpanel .db .row').length); chk(nrows > 100, 'CONFIG: CFG 값 행이 많이 표시됨 (' + nrows + ')');
+  chk(await gs(() => DEV.api.cfg.changes().length) === 0, 'CONFIG: 처음에는 변경 0개');
+  await setv('dev-c-m-bulletRange.mode', 'legacy'); chk(await gs(() => CFG.bulletRange.mode) === 'legacy', 'CONFIG: 모드 스위치(bulletRange.mode → legacy)가 CFG에 반영');
+  chk(await gs(() => JSON.stringify(DEV.api.cfg.exportMap())) === '{"bulletRange.mode":"legacy"}', 'CONFIG: 변경 JSON 내보내기'); chk(await gs(() => DEV.api.cfg.exportSet()) === `--set 'bulletRange.mode="legacy"'`, 'CONFIG: --set 인자 내보내기: ' + await gs(() => DEV.api.cfg.exportSet()));
+  const b0 = await gs(() => game.player.spec.bSpeed); await setv('dev-c-bulletSpeedMul', 1.4); const b1 = await gs(() => game.player.spec.bSpeed); chk(Math.abs(b1 / b0 - 2) < 0.01, 'CONFIG: bulletSpeedMul 0.7→1.4 바꾸면 탱크 총알 속도가 자동 재계산되어 2배 (' + Math.round(b0) + ' → ' + Math.round(b1) + ')');
+  const f0 = await gs(() => { const p = game.player, bt = new Bot(p.x + 800, p.y, 5, 'Old', 5); game.bots.push(bt); window.__old = bt; return bt.fleeHp; }); await setv('dev-c-botFx.fleeHp-0', 0.9); const f1 = await gs(() => { const p = game.player, bt = new Bot(p.x + 900, p.y, 5, 'New', 5); game.bots.push(bt); return [window.__old.fleeHp, bt.fleeHp]; });
+  chk(f1[0] === f0 && Math.abs(f1[1] - f0) > 0.05, 'CONFIG: botFx.fleeHp는 새 봇부터 반영(기존 봇 ' + f0.toFixed(3) + ' 그대로, 새 봇 ' + f1[1].toFixed(3) + ')');
+  await setv('dev-c-bulletSpeedMul', ''); chk(await gs(() => CFG.bulletSpeedMul) === 1.4, 'CONFIG: 빈 값은 거부(이전 값 유지)'); await setv('dev-c-bulletSpeedMul', 'abc');
+  await pg.evaluate(() => { const r = document.getElementById('dev-c-bulletSpeedMul'); r.value = 'abc'; r.dispatchEvent(new Event('change')); }); chk(await gs(() => CFG.bulletSpeedMul) === 1.4 && await gs(() => document.getElementById('dev-c-bulletSpeedMul').value) === '1.4', 'CONFIG: 잘못된 값은 거부(이전 값 유지)');
+  await pg.evaluate(() => { const b = document.querySelector('#dev-c-bulletSpeedMul'); b.closest('.row').querySelector('.act').click(); }); chk(await gs(() => CFG.bulletSpeedMul) === 0.7 && Math.abs((await gs(() => game.player.spec.bSpeed)) - b0) < 0.01, 'CONFIG: ↺로 기본값 복원(총알 속도도 원래대로)');
+  await setv('dev-c-botTypes-0-b'.replace(/-/g, '.').replace('dev.c.', 'dev-c-'), 0.1); /* botTypes.0.b 행의 id는 dev-c-botTypes.0.b */
+  chk(await gs(() => DEV.api.cfg.exportSet().startsWith(`--set 'botTypes=[`)), 'CONFIG: 배열 칸(botTypes.0.b) 변경은 배열 전체로 --set 내보내기'); 
+  await setv('dev-c-q', 'tMaxA', 'input'); const vis = await gs(() => [...document.querySelectorAll('#devpanel .db .row')].filter(r => r.style.display !== 'none' && r.querySelector('label[title]')).map(r => r.querySelector('label[title]').title)); chk(vis.length >= 1 && vis.length <= 3 && vis.every(x => x.includes('tMaxA')), 'CONFIG: 검색 tMaxA → ' + vis.join(', ')); await setv('dev-c-q', '', 'input');
+  await pg.evaluate(() => { const io = document.getElementById('dev-c-io'); io.style.display = 'block'; io.value = '{"bulletRange.tMin": 3, "없는.경로": 1}'; }); await click('붙여넣은 JSON 적용'); chk(await gs(() => CFG.bulletRange.tMin) === 3, 'CONFIG: 붙여넣은 JSON 적용(tMin 3), 잘못된 경로는 실패 처리');
+  await click('전부 기본값으로'); chk(await gs(() => DEV.api.cfg.changes().length) === 0 && await gs(() => CFG.bulletRange.mode) === 'range' && await gs(() => CFG.botTypes[0].b) !== 0.1, 'CONFIG: 전부 기본값으로 되돌리면 변경 0개');
   await tab('info');
   await pg.close(); pg = await open(true); await pg.keyboard.press('F2'); await pg.waitForTimeout(500); s = await st(pg); chk(s.dev && s.state === 'failed', 'dev.js를 못 불러와도(차단) 개발자 모드는 켜지고 대체 패널을 씀'); await pg.close();
   // ---- 버전 표시 ----
