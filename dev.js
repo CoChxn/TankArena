@@ -422,6 +422,64 @@
     },
   });
 
-  DEV.api = { sync, addTab, select, tabs: TABS, setSide, mouse: api_mouse, view, devCam, SEL, cfg: { CFG0, changes, exportMap, exportSet, applyValue, typeOf } };
+  /* ---- 시간 제어: 일시정지 · 한 프레임 · 배속 (game.devTime을 frame()이 읽음) ---- */
+  game.devTime = game.devTime || { paused: false, step: 0, scale: 1 };
+  const TT = game.devTime;
+  const tbar = E('div', { class: 'row', style: { padding: '3px 6px', borderBottom: '1px solid rgba(255,255,255,.15)' } });
+  const tPause = act('⏸', () => setPaused(!TT.paused), { title: '일시정지 / 재개' });
+  const tStep = act('⏭', () => { TT.paused = true; TT.step++; updTime(); }, { title: '한 프레임(1/60초) 진행' });
+  const tSpd = selIn('devspeed', [['0.25', '0.25x'], ['0.5', '0.5x'], ['1', '1x'], ['2', '2x'], ['4', '4x']], '1');
+  const tLab = E('span', { class: 'note', style: { marginLeft: '6px' } });
+  function updTime() { tPause.textContent = TT.paused ? '▶' : '⏸'; tLab.textContent = TT.paused ? '정지됨' : TT.scale !== 1 ? TT.scale + '배속' : ''; badge.textContent = TT.paused ? 'DEV ⏸' : TT.scale !== 1 ? 'DEV ' + TT.scale + 'x' : 'DEV'; }
+  function setPaused(v) { TT.paused = !!v; if (!v) TT.step = 0; updTime(); }
+  tSpd.onchange = () => { TT.scale = parseFloat(tSpd.value) || 1; updTime(); };
+  tbar.append(E('label', { text: '시간', style: { width: '36px' } }), tPause, tStep, tSpd, tLab);
+  panel.insertBefore(tbar, body);
+
+  /* ---- 추이 샘플(0.5초마다): 프레임 시간·도형 수·봇 수 ---- */
+  const SAMP = []; let sampT = null;
+  const sample = () => { if (!game.dev || TT.paused) return; SAMP.push({ t: game.clock, ms: game.devFrameMs || 0, shapes: game.shapes.length, bots: game.bots.length }); if (SAMP.length > 240) SAMP.shift(); };
+  sampT = setInterval(sample, 500);
+
+  /* ---- LOG 탭: 이벤트 목록(필터·JSON 저장) + 추이 그래프 ---- */
+  addTab({
+    id: 'log', title: 'LOG', build(el) {
+      const TYPES = [['kill', '처치'], ['class', '클래스'], ['cluster', '군집'], ['trap', '트랩']];
+      const on = {}; const chk = TYPES.map(([k, n]) => { on[k] = true; const c = E('input', { type: 'checkbox' }); c.checked = true; c.onchange = () => { on[k] = c.checked; draw(); }; return E('label', { style: { width: 'auto', marginRight: '8px' } }, c, ' ' + n); });
+      const list = E('div', { class: 'sec', style: { maxHeight: '170px', overflowY: 'auto' } });
+      const io = E('textarea', { rows: 4, style: { width: '100%', display: 'none' } });
+      const cnt = E('span', { class: 'note' });
+      const mk = (title, key, color) => { const c = E('canvas', { width: 400, height: 46, style: { width: '100%', height: '46px', background: 'rgba(255,255,255,.05)' } }); return { title, key, color, c, lab: E('div', { class: 'note' }) }; };
+      const G = [mk('프레임 시간(ms, 그리기 포함 평균)', 'ms', '#ffd24a'), mk('도형 수', 'shapes', '#7fe08a'), mk('봇 수', 'bots', '#6ab8ff')];
+      const evs = () => (game.devEvents || []).filter(e => on[e.type]);
+      let lastKey = '';
+      function draw() {
+        const a = evs(), key = a.length + ':' + (a.length ? a[a.length - 1].t : 0) + ':' + Object.values(on).join(); if (key === lastKey) return; lastKey = key;
+        list.textContent = ''; for (const e of a.slice(-100).reverse()) list.appendChild(E('div', { class: 'ln', text: `${e.t.toFixed(1).padStart(7)}s [${e.type}] ${e.text}` }));
+        cnt.textContent = `${a.length}건 (전체 ${(game.devEvents || []).length})`;
+      }
+      function graphs() {
+        for (const g of G) {
+          const ctx = g.c.getContext('2d'), W = g.c.width, H = g.c.height; ctx.clearRect(0, 0, W, H);
+          const v = SAMP.map(s => s[g.key]); if (v.length < 2) { g.lab.textContent = g.title + ': (수집 중)'; continue; }
+          const lo = Math.min(...v), hi = Math.max(...v), span = hi - lo || 1;
+          ctx.strokeStyle = g.color; ctx.lineWidth = 1.5; ctx.beginPath();
+          v.forEach((y, i) => { const px = i / (SAMP.length - 1 || 1) * (W - 2) + 1, py = H - 3 - (y - lo) / span * (H - 6); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke();
+          const f = x => g.key === 'ms' ? x.toFixed(2) : String(Math.round(x));
+          g.lab.textContent = `${g.title}: 지금 ${f(v[v.length - 1])} · 최소 ${f(lo)} · 최대 ${f(hi)} (최근 ${Math.round(v.length / 2)}초)`;
+        }
+      }
+      const status = E('span', { class: 'note' });
+      const exp = () => JSON.stringify({ build: typeof BUILD_ID === 'string' ? BUILD_ID : '', events: game.devEvents || [], samples: SAMP }, null, 1);
+      const save = () => { const txt = exp(); try { const u = URL.createObjectURL(new Blob([txt], { type: 'application/json' })), a = E('a', { href: u }); a.download = 'tank-arena-log.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); status.textContent = 'tank-arena-log.json 저장'; } catch (e) { io.style.display = ''; io.value = txt; status.textContent = '저장 실패 → 아래 칸 내용을 복사하세요'; } };
+      const copy = () => { const txt = exp(); io.style.display = ''; io.value = txt; io.select(); try { navigator.clipboard.writeText(txt).then(() => { status.textContent = '복사됨'; }, () => { status.textContent = '복사 실패 → 선택된 글자를 직접 복사'; }); } catch (e) { status.textContent = '선택된 글자를 직접 복사'; } };
+      el.append(row('', ...chk), row('', act('JSON 저장', save), act('JSON 복사', copy), act('로그 지우기', () => { game.devEvents = []; lastKey = ''; draw(); }), cnt), list, io, status,
+        E('h4', { text: '추이 그래프' }), ...G.flatMap(g => [g.lab, g.c]), E('div', { class: 'note', text: '이벤트: 봇·플레이어 처치, 클래스 선택, 군집 종료, 트랩 파괴. 그래프는 0.5초마다 표본(일시정지 중엔 쉼).' }));
+      draw(); graphs();
+      return { update() { draw(); graphs(); } };
+    },
+  });
+
+  DEV.api = { sync, time: TT, setPaused, samples: SAMP, addTab, select, tabs: TABS, setSide, mouse: api_mouse, view, devCam, SEL, cfg: { CFG0, changes, exportMap, exportSet, applyValue, typeOf } };
   sync();
 })();

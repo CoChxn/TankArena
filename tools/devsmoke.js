@@ -19,7 +19,7 @@ let chromium; try { ({ chromium } = require('playwright')); } catch (e) { consol
   const setv = (id, v, ev) => pg.evaluate(([i, x, e]) => { const el = document.getElementById(i); if (el.type === 'checkbox') el.checked = x; else el.value = x; el.dispatchEvent(new Event(e || 'change')); }, [id, v, ev]);
   const click = text => pg.evaluate(t => { const b = [...document.querySelectorAll('#devpanel .act')].find(x => x.textContent === t); if (!b) throw new Error('버튼 없음: ' + t); b.click(); }, text);
   const gs = f => pg.evaluate(f);
-  chk((await gs(() => [...document.querySelectorAll('#devpanel .tabs button')].map(b => b.textContent))).join() === 'INFO,PLAYER,BOTS,WORLD,VIEW,INSPECT,CONFIG', '탭: INFO, PLAYER, BOTS, WORLD, VIEW, INSPECT, CONFIG');
+  chk((await gs(() => [...document.querySelectorAll('#devpanel .tabs button')].map(b => b.textContent))).join() === 'INFO,PLAYER,BOTS,WORLD,VIEW,INSPECT,CONFIG,LOG', '탭: INFO, PLAYER, BOTS, WORLD, VIEW, INSPECT, CONFIG, LOG');
   await tab('player'); await setv('dev-p-cls', 'trapper'); chk(await gs(() => game.player.cls) === 'trapper', 'PLAYER: 클래스 직접 선택(Trapper, 레벨 조건 없음)');
   await setv('dev-p-lvn', 30); chk(await gs(() => game.player.level) === 30, 'PLAYER: 레벨 30으로 설정'); await setv('dev-p-lv', 12, 'input'); chk(await gs(() => game.player.level) === 12, 'PLAYER: 슬라이더로 레벨 12');
   await setv('dev-p-st-reload', 7); chk(await gs(() => game.player.up.reload) === 7, 'PLAYER: 능력치 입력(Reload 7)');
@@ -71,6 +71,36 @@ let chromium; try { ({ chromium } = require('playwright')); } catch (e) { consol
   await setv('dev-c-q', 'tMaxA', 'input'); const vis = await gs(() => [...document.querySelectorAll('#devpanel .db .row')].filter(r => r.style.display !== 'none' && r.querySelector('label[title]')).map(r => r.querySelector('label[title]').title)); chk(vis.length >= 1 && vis.length <= 3 && vis.every(x => x.includes('tMaxA')), 'CONFIG: 검색 tMaxA → ' + vis.join(', ')); await setv('dev-c-q', '', 'input');
   await pg.evaluate(() => { const io = document.getElementById('dev-c-io'); io.style.display = 'block'; io.value = '{"bulletRange.tMin": 3, "없는.경로": 1}'; }); await click('붙여넣은 JSON 적용'); chk(await gs(() => CFG.bulletRange.tMin) === 3, 'CONFIG: 붙여넣은 JSON 적용(tMin 3), 잘못된 경로는 실패 처리');
   await click('전부 기본값으로'); chk(await gs(() => DEV.api.cfg.changes().length) === 0 && await gs(() => CFG.bulletRange.mode) === 'range' && await gs(() => CFG.botTypes[0].b) !== 0.1, 'CONFIG: 전부 기본값으로 되돌리면 변경 0개');
+  // ---- 단계 5: 시간 제어 / LOG ----
+  { await pg.evaluate(() => { game.player.god = true; });
+    const clk = () => gs(() => game.clock);
+    await pg.evaluate(() => DEV.api.setPaused(true)); const c0 = await clk(); await pg.waitForTimeout(400); chk(Math.abs((await clk()) - c0) < 1e-9, '시간: 일시정지 중 게임 시계가 멈춤');
+    chk((await gs(() => document.getElementById('devbadge').textContent)).includes('⏸'), '시간: DEV 표시에 정지 아이콘');
+    await click('⏭'); await pg.waitForTimeout(300); const c1 = await clk(); chk(Math.abs(c1 - c0 - 1 / 60) < 1e-6, '시간: 한 프레임 진행 = 1/60초 (' + (c1 - c0).toFixed(5) + ')');
+    await pg.waitForTimeout(200); chk(Math.abs((await clk()) - c1) < 1e-9, '시간: 한 프레임 뒤 다시 정지');
+    await click('▶'); await pg.waitForTimeout(100);
+    await setv('devspeed', '4'); const d0 = await clk(), w0 = Date.now(); await pg.waitForTimeout(1000); const r4 = ((await clk()) - d0) / ((Date.now() - w0) / 1000);
+    await setv('devspeed', '1'); const d1 = await clk(), w1 = Date.now(); await pg.waitForTimeout(1000); const r1 = ((await clk()) - d1) / ((Date.now() - w1) / 1000);
+    chk(r4 > r1 * 2.5, '시간: 4배속이 1배속보다 빠름 (' + r4.toFixed(2) + ' vs ' + r1.toFixed(2) + ' 게임초/초)');
+    await setv('devspeed', '0.25'); const d2 = await clk(), w2 = Date.now(); await pg.waitForTimeout(1000); const rq = ((await clk()) - d2) / ((Date.now() - w2) / 1000); chk(rq < r1 * 0.5, '시간: 0.25배속이 느림 (' + rq.toFixed(2) + ')'); await setv('devspeed', '1');
+    await tab('log');
+    await pg.evaluate(() => { game.devEvents = []; const p = game.player; p.setClass('tank'); p.setLevel(14); game.state = 'play'; p.alive = true; });
+    await pg.evaluate(() => { const b = new Bot(1); window.__lb = b; game.bots.push(b); b.x = game.player.x + 300; b.y = game.player.y; b.hp = 1; b.lastHit = game.player; });
+    await pg.waitForTimeout(300); await pg.evaluate(() => { const b = window.__lb; b.hp = 0; }); await pg.waitForTimeout(500);
+    chk(await gs(() => (game.devEvents || []).some(e => e.type === 'kill')), 'LOG: 봇 처치가 이벤트로 기록됨');
+    await pg.evaluate(() => { game.player.setLevel(45); game.chooseClass(classChoices(game.player.cls, game.player.level)[0]); }); await pg.waitForTimeout(100);
+    chk(await gs(() => game.devEvents.some(e => e.type === 'class' && e.text.startsWith('You'))), 'LOG: 클래스 선택 기록 ');
+    await pg.evaluate(() => { const c = game.clusters[0]; if (c) game.endCluster(c); else game.devEvent('cluster', 'x'); }); chk(await gs(() => game.devEvents.some(e => e.type === 'cluster')), 'LOG: 군집 종료 기록');
+    await pg.evaluate(() => { game.bullets.push({ trap: true, x: game.player.x + 2000, y: game.player.y, vx: 0, vy: 0, r: 20, pen: 0, hp: 0, life: 10, owner: game.player, dmg: 1 }); }); await pg.waitForTimeout(100);
+    await pg.waitForTimeout(600); const list = await gs(() => document.querySelector('#devpanel .db .sec').innerText);
+    chk(list.includes('[kill]') && list.includes('[class]'), 'LOG: 패널 목록에 이벤트 표시');
+    const json = await gs(() => { const p = DEV.api.samples; return JSON.stringify({ n: p.length }); }); await pg.waitForTimeout(1200);
+    chk((await gs(() => DEV.api.samples.length)) >= 2, 'LOG: 추이 표본 수집 (' + json + ')');
+    await pg.evaluate(() => { document.querySelectorAll('#devpanel .db label input').forEach(c => { if (c.parentElement.textContent.includes('처치')) { c.checked = false; c.dispatchEvent(new Event('change')); } }); });
+    const list2 = await gs(() => document.querySelector('#devpanel .db .sec').innerText); chk(!list2.includes('[kill]') && list2.includes('[class]'), 'LOG: 필터로 종류 숨기기');
+    await click('JSON 복사'); const ta = await gs(() => document.querySelector('#devpanel .db textarea').value); let ok = false; try { const o = JSON.parse(ta); ok = Array.isArray(o.events) && Array.isArray(o.samples) && o.events.length >= 2; } catch (e) { /* 아래 chk에서 실패 처리 */ } chk(ok, 'LOG: JSON 내보내기가 올바른 형식');
+    await click('로그 지우기'); chk(await gs(() => game.devEvents.length) === 0, 'LOG: 로그 지우기');
+  }
   await tab('info');
   await pg.close(); pg = await open(true); await pg.keyboard.press('F2'); await pg.waitForTimeout(500); s = await st(pg); chk(s.dev && s.state === 'failed', 'dev.js를 못 불러와도(차단) 개발자 모드는 켜지고 대체 패널을 씀'); await pg.close();
   // ---- 버전 표시 ----

@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const adiff = (a, t) => ((t - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const turn = (a, t, r) => a + clamp(adiff(a, t), -r, r);
-const BUILD_ID = 'e057317', BUILD_AT = '2026-11-03T11:14Z'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시와, 그 해시가 바뀐 시각(UTC)) */
+const BUILD_ID = '0755306', BUILD_AT = '2026-11-03T11:41Z'; /* 자동 생성: npm run version (이 줄을 뺀 game.js 내용 해시와, 그 해시가 바뀐 시각(UTC)) */
 
 const CFG = {
   world: 23000, grid: 24, maxLevel: 45, maxPts: 7, clashTol: 0.02, bulletHp: 4, drag: 4.5, playerR: 24, particles: false, bulletLife: 1.7, shapeGap: 4, shapeDensity: 3.7e-6, hyperAfter: 15, hyperRate: 0.10, spawnInvuln: 10, respawnMode: 'diep', recoilK: 2.7, recoilV: 480, recoilMax: 150, recoilMul: 0.5,
@@ -395,7 +395,7 @@ class Bot extends Player {
       const ch = classChoices(this.cls, this.level); if (!ch.length) return;
       let tot = 0; for (const c of ch) tot += this.cls === 'tank' ? BOT_CLASS_W[c] : 1;
       let r = Math.random() * tot, k = ch[0]; for (const c of ch) { k = c; r -= this.cls === 'tank' ? BOT_CLASS_W[c] : 1; if (r <= 0) break; }
-      this.setClass(k); this.wt = botBuildWeights(this.pt, k); // 이후 포인트부터 클래스에 맞는 능력치 가중치를 겹침
+      this.setClass(k); if (game && game.dev) game.devEvent('class', `${this.name} (Lv${this.level}) → ${CFG.classes[k].n}`); this.wt = botBuildWeights(this.pt, k); // 이후 포인트부터 클래스에 맞는 능력치 가중치를 겹침
     }
   }
   addXp(v) { super.addXp(v); this.spendPoints(); this.pickClass(); } // 플레이어와 같은 레벨업 -> 포인트 투자 -> 15레벨 클래스 선택
@@ -761,6 +761,7 @@ class Game {
   die() {
     const p = this.player; p.alive = false; this.state = 'dead'; this.input.down = false; this.input.auto = false; // 죽으면 오토파이어 해제
     this.fx.burst(p.x, p.y, '#00b2e1', 30, 320);
+    { const k0 = p.lastHit; this.devEvent('kill', `${k0 && k0.isBot ? k0.name + ' (Lv' + k0.level + ')' : k0 && k0.kind ? k0.kind : '?'} → You (Lv${p.level})`); }
     const k = p.lastHit, bot = k && k.isBot; if (bot && k.hp > 0) k.addXp(40 + p.score * 0.5); // 처치한 봇이 경험치 획득
     this.respawnLv = respawnLevel(p.level);
     this.spec = k && k.hp !== undefined ? k : null; this.specPos.x = p.x; this.specPos.y = p.y; // diep.io: 사망하면 나를 죽인 대상을 관전(대상이 죽으면 그 자리에 카메라 고정)
@@ -809,7 +810,7 @@ class Game {
     return true;
   }
   endCluster(c) { // 'grow'에서 군집을 없앰: 도형은 일반 도형이 되어 표류하고('free'), 'zone'이면 원래 군집 경계 안에 머묾(일반 도형으로 셈). 같은 위치에는 곧바로 새 군집이 아니라 면적 기준 군집 수에 맞춰 다른 곳에 새로 생김
-    c.retired = true; if (CFG.clusters.release !== 'zone') for (const s of this.shapes) if (s.cl === c) s.cl = null;
+    this.devEvent('cluster', `군집 종료(${c.type}) 생성 ${c.spawned}/${c.target}, 남은 ${c.n}`); c.retired = true; if (CFG.clusters.release !== 'zone') for (const s of this.shapes) if (s.cl === c) s.cl = null;
     const i = this.clusters.indexOf(c); if (i >= 0) this.clusters.splice(i, 1);
   }
   spawnShape(anywhere, nest, type, cl) { // nest=true면 Pentagon Nest 안(오각형, type='alpha'는 알파 오각형), 아니면 둥지 밖(사각형/삼각형/가끔 오각형)
@@ -880,7 +881,7 @@ class Game {
   }
   chooseClass(k) {
     const p = this.player;
-    if (this.state === 'play' && p.alive && CFG.classes[k] && classChoices(p.cls, p.level).includes(k)) { p.setClass(k); this.fx.burst(p.x, p.y, CFG.classes[k].c, 16, 260); }
+    if (this.state === 'play' && p.alive && CFG.classes[k] && classChoices(p.cls, p.level).includes(k)) { p.setClass(k); this.devEvent('class', `You → ${CFG.classes[k].n}`); this.fx.burst(p.x, p.y, CFG.classes[k].c, 16, 260); }
   }
   damage(e, d, by) { if (e.hurt) e.hurt(d, by); else { e.hp -= d; e.flash = 0.12; e.lastHit = by; e.calm = 0; } }
   onKill(e) { // 마지막으로 피해를 준 탱크가 즉시 경험치 획득 (도형은 고정값, 탱크는 점수에 비례)
@@ -890,8 +891,10 @@ class Game {
       const nm = `${e.name} (Lv${e.level})`;
       this.devNote(k && k.isBot ? `${k.name} (Lv${k.level}) killed ${nm}` : `${nm} was killed by ${k && k.kind ? (/^[aeiou]/.test(k.kind) ? 'an ' : 'a ') + k.kind : 'unknown'}`);
     }
+    if (this.dev && e.isBot) { const kn = k === this.player ? 'You' : k && k.isBot ? `${k.name} (Lv${k.level})` : k && k.kind ? k.kind : '?'; this.devEvent('kill', `${kn} → ${e.name} (Lv${e.level})`); } /* 개발자 이벤트 로그 */
     this.fx.burst(e.x, e.y, e.col || e.s.c, 10 + (e.r >> 2), 220);
   }
+  devEvent(type, text) { if (!this.dev) return; const a = this.devEvents || (this.devEvents = []); a.push({ t: this.clock, type, text }); if (a.length > 600) a.shift(); } /* 개발자 이벤트 로그(최대 600개) */
   devNote(text) { this.devLog.unshift({ t: 6, text }); if (this.devLog.length > 6) this.devLog.pop(); } // 개발자용 킬로그(최대 6줄, 6초)
   note(text) { this.notes.unshift({ t: 4, text }); if (this.notes.length > 4) this.notes.pop(); }
   collisionPass() { // 충돌 틱(0.04초)마다 몸통 충돌 처리
@@ -984,6 +987,7 @@ class Game {
         alive = this.bulletVsShapes(b, grid, u) && this.bulletVs(b, this.bots, u) && this.bulletVs(b, this.crashers, u);
         if (alive && b.owner !== p && p.alive && touch(b, p)) alive = this.bulletExchange(b, p, u); // 플레이어도 봇의 총알과 같은 규칙으로 교환
       }
+      if (!alive && b.trap && b.life > 0 && this.dev) this.devEvent('trap', `트랩 파괴 (${b.owner && b.owner.name ? b.owner.name : b.owner === p ? 'You' : '?'})`);
       if (alive) this.bullets[j++] = b;
     }
     this.bullets.length = j;
@@ -1142,8 +1146,11 @@ class Game {
 /* ============ 메인 루프 (delta time, 최대 50ms로 제한) ============ */
 let game, last = 0;
 function frame(t) {
-  const dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
-  game.update(dt); game.draw(); requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (t - last) / 1000 || 0); last = t; const t0 = performance.now();
+  let d = dt; const T = game.dev && game.devTime; /* 개발자 시간 제어: 일시정지·한 프레임 진행·배속 */
+  if (T) { if (T.paused) { if (T.step > 0) { T.step--; d = 1 / 60; } else d = 0; } else d = dt * T.scale; }
+  for (let n = Math.ceil(d / 0.05 - 1e-9), r = d; n > 0; n--) { const h = Math.min(0.05, r); game.update(h); r -= h; } /* 한 번에 0.05초를 넘지 않게 쪼개 물리 안정 유지 */
+  game.draw(); game.devFrameMs = (game.devFrameMs || 0) * 0.9 + (performance.now() - t0) * 0.1; requestAnimationFrame(frame);
 }
 game = new Game(document.getElementById('c'));
 document.getElementById('play').onclick = () => game.start();
